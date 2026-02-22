@@ -1,22 +1,10 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import {
-    Calendar,
-    Phone,
-    Printer,
-    Sun,
-    Moon,
-    ChevronRight,
-    ChevronLeft,
-    Search,
-    Download,
-    Stethoscope,
-    Copy,
-    Check
-} from 'lucide-react';
-import { mockDoctors, mockRoster, mockShiftTypes } from '@/lib/mockData';
+import { Loader2, Calendar, Phone, Printer, Sun, Moon, ChevronRight, ChevronLeft, Search, Download, Stethoscope, Copy, Check } from 'lucide-react';
+import { mockShiftTypes } from '@/lib/mockData';
 import { Doctor, RosterRecord, ShiftType } from '@/lib/types';
+import { doctorService, rosterService } from '@/lib/firebase-service';
 import { getCurrentDateISO, formatDate, cn } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 import { forceDownloadExcel } from '@/lib/excel-utils';
@@ -26,13 +14,37 @@ export default function CallSheetPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [copiedId, setCopiedId] = useState<string | null>(null);
 
+    const [isLoading, setIsLoading] = useState(true);
+    const [doctors, setDoctors] = useState<Doctor[]>([]);
+    const [rosters, setRosters] = useState<RosterRecord[]>([]);
+
+    React.useEffect(() => {
+        const loadData = async () => {
+            setIsLoading(true);
+            try {
+                const monthFilter = selectedDate.substring(0, 7); // Gets YYYY-MM
+                const [docsData, rosterData] = await Promise.all([
+                    doctorService.getAll(),
+                    rosterService.getByMonth(monthFilter)
+                ]);
+                setDoctors(docsData);
+                setRosters(rosterData);
+            } catch (error) {
+                console.error("Error loading call sheet data:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        loadData();
+    }, [selectedDate]);
+
     // Group data for the selected date
     const groupedData = useMemo(() => {
-        const dailyRoster = mockRoster.filter(r => r.date === selectedDate);
+        const dailyRoster = rosters.filter(r => r.date === selectedDate);
         const specialtyMap: Record<string, { morning: (Doctor & { shiftCode: string })[], evening: (Doctor & { shiftCode: string })[] }> = {};
 
         dailyRoster.forEach(record => {
-            const doctor = mockDoctors.find(d => d.fingerprintCode === record.doctorId);
+            const doctor = doctors.find(d => d.fingerprintCode === record.doctorId);
             const shift = mockShiftTypes.find(s => s.code === record.shiftCode);
 
             if (doctor && shift) {
@@ -62,7 +74,7 @@ export default function CallSheetPage() {
                 item.evening.some(d => d.fullNameArabic.includes(searchTerm))
             )
             .sort((a, b) => a.specialty.localeCompare(b.specialty, 'ar'));
-    }, [selectedDate, searchTerm]);
+    }, [selectedDate, searchTerm, doctors, rosters]);
 
     const handleCall = (phoneNumber: string) => {
         window.location.href = `tel:${phoneNumber}`;
@@ -206,65 +218,72 @@ export default function CallSheetPage() {
                 </div>
             </div>
 
-            <div className="relative max-w-md no-print">
-                <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
-                <input
-                    type="text"
-                    placeholder="البحث بالاسم أو التخصص..."
-                    className="w-full pr-12 pl-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-white shadow-sm"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
+            <div className="flex md:items-center gap-4 flex-col md:flex-row w-full md:w-auto mt-4 md:mt-0">
+                <div className="relative flex-1 md:w-64 no-print">
+                    <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                    <input
+                        type="text"
+                        placeholder="ابحث عن طبيب أو قسم..."
+                        className="w-full pr-10 pl-4 py-2.5 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all text-sm font-medium bg-white"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
             </div>
 
-            {/* Specialty Sections - Web View Only */}
-            <div className="space-y-10 no-print">
-                {groupedData.length > 0 ? (
-                    groupedData.map((group) => (
-                        <div key={group.specialty} className="break-inside-avoid shadow-sm">
-                            <h3 className="text-xl font-black mb-0 bg-slate-200 p-4 rounded-t-2xl border-b-2 border-slate-300 text-slate-800">
-                                {group.specialty}
-                            </h3>
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 p-6 border-2 border-t-0 border-slate-100 bg-white rounded-b-2xl">
-                                {/* Morning Period */}
-                                <div className="space-y-4">
-                                    <h4 className="text-lg font-black mb-4 border-b-2 border-slate-100 pb-2 flex items-center gap-2">
-                                        <Sun className="w-5 h-5 text-amber-500" />
-                                        <span>الفترة الصباحية</span>
-                                    </h4>
-                                    <ShiftTable
-                                        doctors={group.morning}
-                                        onCall={handleCall}
-                                        onCopy={handleCopy}
-                                        copiedId={copiedId}
-                                        prefix="m"
-                                    />
-                                </div>
+            {isLoading ? (
+                <div className="py-20 flex justify-center">
+                    <Loader2 className="w-10 h-10 text-primary animate-spin" />
+                </div>
+            ) : (
+                <div className="space-y-10 no-print">
+                    {groupedData.length > 0 ? (
+                        groupedData.map((group) => (
+                            <div key={group.specialty} className="break-inside-avoid shadow-sm">
+                                <h3 className="text-xl font-black mb-0 bg-slate-200 p-4 rounded-t-2xl border-b-2 border-slate-300 text-slate-800">
+                                    {group.specialty}
+                                </h3>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 p-6 border-2 border-t-0 border-slate-100 bg-white rounded-b-2xl">
+                                    {/* Morning Period */}
+                                    <div className="space-y-4">
+                                        <h4 className="text-lg font-black mb-4 border-b-2 border-slate-100 pb-2 flex items-center gap-2">
+                                            <Sun className="w-5 h-5 text-amber-500" />
+                                            <span>الفترة الصباحية</span>
+                                        </h4>
+                                        <ShiftTable
+                                            doctors={group.morning}
+                                            onCall={handleCall}
+                                            onCopy={handleCopy}
+                                            copiedId={copiedId}
+                                            prefix="m"
+                                        />
+                                    </div>
 
-                                {/* Evening Period */}
-                                <div className="space-y-4">
-                                    <h4 className="text-lg font-black mb-4 border-b-2 border-slate-100 pb-2 flex items-center gap-2">
-                                        <Moon className="w-5 h-5 text-indigo-500" />
-                                        <span>الفترة المسائية</span>
-                                    </h4>
-                                    <ShiftTable
-                                        doctors={group.evening}
-                                        onCall={handleCall}
-                                        onCopy={handleCopy}
-                                        copiedId={copiedId}
-                                        prefix="e"
-                                    />
+                                    {/* Evening Period */}
+                                    <div className="space-y-4">
+                                        <h4 className="text-lg font-black mb-4 border-b-2 border-slate-100 pb-2 flex items-center gap-2">
+                                            <Moon className="w-5 h-5 text-indigo-500" />
+                                            <span>الفترة المسائية</span>
+                                        </h4>
+                                        <ShiftTable
+                                            doctors={group.evening}
+                                            onCall={handleCall}
+                                            onCopy={handleCopy}
+                                            copiedId={copiedId}
+                                            prefix="e"
+                                        />
+                                    </div>
                                 </div>
                             </div>
+                        ))
+                    ) : (
+                        <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-200">
+                            <Stethoscope className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+                            <p className="text-slate-400 font-black text-xl">لا توجد أي مناوبات لهذا اليوم.</p>
                         </div>
-                    ))
-                ) : (
-                    <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-200">
-                        <Stethoscope className="w-16 h-16 text-slate-200 mx-auto mb-4" />
-                        <p className="text-slate-400 font-black text-xl">لا توجد أي مناوبات لهذا اليوم.</p>
-                    </div>
-                )}
-            </div>
+                    )}
+                </div>
+            )}
 
             {/* Official Dedicated Print View */}
             <OfficialPrintReport groupedData={groupedData} selectedDate={selectedDate} />

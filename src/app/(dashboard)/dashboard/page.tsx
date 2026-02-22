@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
-import { mockDoctors, mockRoster } from '@/lib/mockData';
+import { doctorService, rosterService } from '@/lib/firebase-service';
 import { getCurrentDateISO, formatDate } from '@/lib/utils';
 import { alertsApi } from '@/lib/alerts';
 import { DashboardAlert } from '@/lib/types';
@@ -24,25 +24,49 @@ export default function DashboardPage() {
     const today = getCurrentDateISO();
 
     const [alerts, setAlerts] = React.useState<DashboardAlert[]>([]);
+    const [statsData, setStatsData] = React.useState({
+        totalDoctors: 0,
+        totalSpecialties: 0,
+        todayWorking: 0,
+        morningShift: 0,
+        eveningShift: 0
+    });
+    const [isLoading, setIsLoading] = React.useState(true);
 
     React.useEffect(() => {
         setAlerts(alertsApi.getAlerts().filter(a => !a.isRead));
-    }, []);
 
-    const totalDoctors = mockDoctors.length;
-    const totalSpecialties = new Set(mockDoctors.map(d => d.specialty)).size;
+        const loadData = async () => {
+            try {
+                const monthPrefix = today.substring(0, 7);
+                const [docs, rosters] = await Promise.all([
+                    doctorService.getAll(),
+                    rosterService.getByMonth(monthPrefix)
+                ]);
 
-    // Use the actual date from mockData if today is empty, or better, use current real today
-    const countTodayShifts = () => {
-        return mockRoster.filter(r => r.date === today).length;
-    };
+                const todayRosters = rosters.filter(r => r.date === today);
 
-    const todayWorking = countTodayShifts();
+                setStatsData({
+                    totalDoctors: docs.length,
+                    totalSpecialties: new Set(docs.map(d => d.specialty)).size,
+                    todayWorking: todayRosters.length,
+                    morningShift: todayRosters.filter(r => r.shiftCode !== '17E').length,
+                    eveningShift: todayRosters.filter(r => r.shiftCode !== '7M').length
+                });
+            } catch (error) {
+                console.error("Failed to fetch dashboard stats", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadData();
+    }, [today]);
 
     const stats = [
-        { name: 'إجمالي الأطباء', value: totalDoctors, icon: Users, color: 'bg-blue-500' },
-        { name: 'التخصصات الطبية', value: totalSpecialties, icon: Stethoscope, color: 'bg-teal-500' },
-        { name: 'مناوبات اليوم', value: todayWorking, icon: CalendarCheck, color: 'bg-amber-500' },
+        { name: 'إجمالي الأطباء', value: statsData.totalDoctors, icon: Users, color: 'bg-blue-500' },
+        { name: 'التخصصات الطبية', value: statsData.totalSpecialties, icon: Stethoscope, color: 'bg-teal-500' },
+        { name: 'مناوبات اليوم', value: statsData.todayWorking, icon: CalendarCheck, color: 'bg-amber-500' },
     ];
 
     return (
@@ -148,21 +172,27 @@ export default function DashboardPage() {
                 )}
 
                 {/* Recent Shifts Info or Daily Summary */}
-                <div className="bg-white p-8 rounded-2xl border border-border shadow-sm">
+                <div className="bg-white p-8 rounded-2xl border border-border shadow-sm flex flex-col">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
                         <div className="w-2 h-6 bg-amber-500 rounded-full" />
                         توزيع مناوبات اليوم
                     </h3>
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between p-4 border-b border-slate-50">
-                            <span className="text-muted-foreground">الفترة الصباحية</span>
-                            <span className="font-bold text-lg">{mockRoster.filter(r => r.date === today && r.shiftCode !== '17E').length} أطباء</span>
+                    {isLoading ? (
+                        <div className="flex-1 flex flex-col relative justify-center items-center">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                         </div>
-                        <div className="flex items-center justify-between p-4 border-b border-slate-50">
-                            <span className="text-muted-foreground">الفترة المسائية</span>
-                            <span className="font-bold text-lg">{mockRoster.filter(r => r.date === today && r.shiftCode !== '7M').length} أطباء</span>
+                    ) : (
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between p-4 border-b border-slate-50">
+                                <span className="text-muted-foreground">الفترة الصباحية</span>
+                                <span className="font-bold text-lg">{statsData.morningShift} أطباء</span>
+                            </div>
+                            <div className="flex items-center justify-between p-4 border-b border-slate-50">
+                                <span className="text-muted-foreground">الفترة المسائية</span>
+                                <span className="font-bold text-lg">{statsData.eveningShift} أطباء</span>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
             </div>
         </div>
