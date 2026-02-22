@@ -27,7 +27,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 try {
                     const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
                     if (userDoc.exists()) {
-                        setUser({ id: firebaseUser.uid, ...userDoc.data() } as User);
+                        const data = userDoc.data();
+                        // Force upgrade any existing early users to admin
+                        if (data.role !== 'admin') {
+                            const upgradedUser = { ...data, role: 'admin' };
+                            await setDoc(doc(db, 'users', firebaseUser.uid), upgradedUser);
+                            setUser({ id: firebaseUser.uid, ...upgradedUser } as User);
+                        } else {
+                            setUser({ id: firebaseUser.uid, ...data } as User);
+                        }
                     } else {
                         // Create default user profile if it doesn't exist
                         // Default to admin for early adoption
