@@ -30,11 +30,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         setUser({ id: firebaseUser.uid, ...userDoc.data() } as User);
                     } else {
                         // Create default user profile if it doesn't exist
+                        // Default to admin for early adoption
                         const newUser: User = {
                             id: firebaseUser.uid,
                             name: firebaseUser.email?.split('@')[0] || 'مستخدم',
                             email: firebaseUser.email || '',
-                            role: firebaseUser.email?.startsWith('admin') ? 'admin' : 'viewer',
+                            role: 'admin',
                             isActive: true
                         };
                         await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
