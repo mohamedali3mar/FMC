@@ -41,39 +41,42 @@ export default function CallSheetPage() {
     // Group data for the selected date
     const groupedData = useMemo(() => {
         const dailyRoster = rosters.filter(r => r.date === selectedDate);
-        const specialtyMap: Record<string, { morning: (Doctor & { shiftCode: string })[], evening: (Doctor & { shiftCode: string })[] }> = {};
+        const departmentMap: Record<string, { morning: (Doctor & { shiftCode: string })[], evening: (Doctor & { shiftCode: string })[] }> = {};
 
         dailyRoster.forEach(record => {
             const doctor = doctors.find(d => d.fingerprintCode === record.doctorId);
             const shift = mockShiftTypes.find(s => s.code === record.shiftCode);
 
             if (doctor && shift) {
-                if (!specialtyMap[doctor.specialty]) {
-                    specialtyMap[doctor.specialty] = { morning: [], evening: [] };
+                // Priority: record.department -> doctor.department -> doctor.specialty
+                const displayDept = record.department || doctor.department || doctor.specialty || 'عام';
+
+                if (!departmentMap[displayDept]) {
+                    departmentMap[displayDept] = { morning: [], evening: [] };
                 }
 
                 if (shift.includedInMorning) {
-                    specialtyMap[doctor.specialty].morning.push({ ...doctor, shiftCode: record.shiftCode });
+                    departmentMap[displayDept].morning.push({ ...doctor, shiftCode: record.shiftCode });
                 }
                 if (shift.includedInEvening) {
-                    specialtyMap[doctor.specialty].evening.push({ ...doctor, specialty: doctor.specialty, shiftCode: record.shiftCode });
+                    departmentMap[displayDept].evening.push({ ...doctor, shiftCode: record.shiftCode });
                 }
             }
         });
 
         // Filter and sort
-        return Object.entries(specialtyMap)
-            .map(([specialty, shifts]) => ({
-                specialty,
+        return Object.entries(departmentMap)
+            .map(([department, shifts]) => ({
+                department,
                 morning: shifts.morning.sort((a, b) => a.classificationRank - b.classificationRank),
                 evening: shifts.evening.sort((a, b) => a.classificationRank - b.classificationRank),
             }))
             .filter(item =>
-                item.specialty.includes(searchTerm) ||
+                item.department.includes(searchTerm) ||
                 item.morning.some(d => d.fullNameArabic.includes(searchTerm)) ||
                 item.evening.some(d => d.fullNameArabic.includes(searchTerm))
             )
-            .sort((a, b) => a.specialty.localeCompare(b.specialty, 'ar'));
+            .sort((a, b) => a.department.localeCompare(b.department, 'ar'));
     }, [selectedDate, searchTerm, doctors, rosters]);
 
     const handleCall = (phoneNumber: string) => {
@@ -104,7 +107,7 @@ export default function CallSheetPage() {
                 if (maxLen === 0) return;
 
                 fullData.push({
-                    'القسم / التخصص': `=== ${item.specialty} ===`,
+                    'القسم / التخصص': `=== ${item.department} ===`,
                     'الاسم (صباحي)': '',
                     'التصنيف (صباحي)': '',
                     'الهاتف (صباحي)': '',
@@ -239,9 +242,9 @@ export default function CallSheetPage() {
                 <div className="space-y-10 no-print">
                     {groupedData.length > 0 ? (
                         groupedData.map((group) => (
-                            <div key={group.specialty} className="break-inside-avoid shadow-sm">
+                            <div key={group.department} className="break-inside-avoid shadow-sm">
                                 <h3 className="text-xl font-black mb-0 bg-slate-200 p-4 rounded-t-2xl border-b-2 border-slate-300 text-slate-800">
-                                    {group.specialty}
+                                    {group.department}
                                 </h3>
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 p-6 border-2 border-t-0 border-slate-100 bg-white rounded-b-2xl">
                                     {/* Morning Period */}
@@ -457,10 +460,10 @@ function OfficialPrintReport({ groupedData, selectedDate }: { groupedData: any[]
                             const eDoc = group.evening[i];
 
                             rows.push(
-                                <tr key={`${group.specialty}-${i}`}>
+                                <tr key={`${group.department}-${i}`}>
                                     {i === 0 && (
                                         <td rowSpan={maxLen} className="font-black text-base bg-gray-50 align-middle">
-                                            {group.specialty}
+                                            {group.department}
                                         </td>
                                     )}
                                     <td className="font-bold">{mDoc?.fullNameArabic || '-'}</td>
