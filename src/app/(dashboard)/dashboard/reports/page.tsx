@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import Link from 'next/link';
+import { format } from 'date-fns';
+import { ar } from 'date-fns/locale';
 
 export default function ReportsPage() {
     const reports = [
@@ -78,8 +80,10 @@ export default function ReportsPage() {
                                     <FileText className="w-5 h-5 text-slate-400" />
                                 </div>
                                 <div>
-                                    <p className="font-bold text-slate-900 text-sm">كشف النداء - {20 - i} مايو 2026</p>
-                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">تم التوليد قبل {i * 2} ساعات</p>
+                                    <p className="font-bold text-slate-900 text-sm">
+                                        كشف النداء - {format(new Date(new Date().setDate(new Date().getDate() - i)), 'd MMMM yyyy', { locale: ar })}
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">تم التوليد في هذا اليوم</p>
                                 </div>
                             </div>
                             <button className="text-slate-400 hover:text-primary p-2">
