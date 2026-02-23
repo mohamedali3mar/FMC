@@ -444,22 +444,24 @@ function DoctorsContent() {
                 });
 
                 if (newDoctors.length > 0) {
-                    // Merge, avoiding duplicates by code
+                    // Update/Save all doctors from the file (existing will be updated, new will be added)
+                    await doctorService.saveBatch(newDoctors);
+
+                    // Refresh local state by merging
+                    const updatedDoctorMap = new Map(doctors.map(d => [d.fingerprintCode, d]));
+                    newDoctors.forEach(d => updatedDoctorMap.set(d.fingerprintCode, d));
+                    setDoctors(Array.from(updatedDoctorMap.values()));
+
                     const existingCodes = new Set(doctors.map(d => d.fingerprintCode));
-                    const addedDocs = newDoctors.filter(d => !existingCodes.has(d.fingerprintCode));
+                    const addedCount = newDoctors.filter(d => !existingCodes.has(d.fingerprintCode)).length;
+                    const updatedCount = newDoctors.length - addedCount;
 
-                    if (addedDocs.length > 0) {
-                        await doctorService.saveBatch(addedDocs);
-                        setDoctors(prev => [...prev, ...addedDocs]);
+                    let msg = `تمت المعالجة بنجاح: `;
+                    if (addedCount > 0) msg += `إضافة ${addedCount} طبيب جديد. `;
+                    if (updatedCount > 0) msg += `تحديث بيانات ${updatedCount} طبيب. `;
 
-                        let msg = `تم رفع وإضافة ${addedDocs.length} طبيب بنجاح.`;
-                        if (conflicts > 0) msg += `\nتم تخطي ${conflicts} سطر بسبب تعارض كود البصمة (راجع التنبيهات).`;
-                        alert(msg);
-                    } else if (errors === 0 && conflicts === 0) {
-                        alert('جميع الأطباء في الملف مضافون مسبقاً.');
-                    } else if (conflicts > 0) {
-                        alert(`لم يتم إضافة أطباء جدد. تم تخطي ${conflicts} سطر بسبب تعارض كود البصمة مع سجلات أخرى.`);
-                    }
+                    if (conflicts > 0) msg += `\nتم تخطي ${conflicts} سطر بسبب تعارض كود البصمة (راجع التنبيهات).`;
+                    alert(msg);
                 } else if (errors > 0 || conflicts > 0 || data.length > 0) {
                     let msg = "لم يتم إضافة أطباء جدد.";
                     if (conflicts > 0) msg += `\nوجد ${conflicts} تعارض في بيانات كود البصمة (راجع التنبيهات للاطلاع على التفاصيل).`;

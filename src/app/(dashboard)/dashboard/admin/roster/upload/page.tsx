@@ -8,8 +8,8 @@ import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import { alertsApi } from '@/lib/alerts';
 import { standardizeDepartment } from '@/lib/department-mapper';
-import { rosterService } from '@/lib/firebase-service';
-import { RosterRecord } from '@/lib/types';
+import { doctorService, rosterService } from '@/lib/firebase-service';
+import { RosterRecord, Doctor } from '@/lib/types';
 
 export default function UploadRosterPage() {
     const [file, setFile] = useState<File | null>(null);
@@ -35,9 +35,9 @@ export default function UploadRosterPage() {
         setIsUploading(true);
         setStatus('idle');
 
-        // Force string formatting with padding
         const monthStr = selectedMonth.toString().padStart(2, '0');
         const yearStr = selectedYear.toString();
+        const targetMonthPrefix = `${yearStr}-${monthStr}`;
 
         const reader = new FileReader();
         reader.onload = async (evt) => {
@@ -50,12 +50,15 @@ export default function UploadRosterPage() {
 
                 let parsedCount = 0;
                 let newAlerts = 0;
-
                 let monthlyShifts: RosterRecord[] = [];
-                const targetMonthPrefix = `${yearStr}-${monthStr}`;
+
+                // 1. Fetch current doctors to check for missing ones
+                const existingDoctors = await doctorService.getAll();
+                const existingCodes = new Set(existingDoctors.map(d => d.fingerprintCode));
+                const newAutoRegisteredDoctors: Doctor[] = [];
+                const unregisteredSeenInThisFile = new Set<string>();
 
                 data.forEach((row, index) => {
-                    // Flexible mapping for roster codes (Fingerprint, ID, Code etc)
                     const fpCode = (
                         row['كود البصمة'] ||
                         row['رقم البصمة'] ||
@@ -67,6 +70,42 @@ export default function UploadRosterPage() {
                     )?.toString().trim();
 
                     if (!fpCode || fpCode === '') return;
+
+                    // Support for doctor name extraction from roster if available
+                    const doctorName = (
+                        row['الأسم'] ||
+                        row['الاسم'] ||
+                        row['اسم الطبيب'] ||
+                        row['Name'] ||
+                        row['Doctor Name']
+                    )?.toString().trim() || 'طبيب غير معرف';
+
+                    // 2. Auto-register if missing
+                    if (!existingCodes.has(fpCode) && !unregisteredSeenInThisFile.has(fpCode)) {
+                        const deptRaw = (row['القسم'] || row['التخصص'] || row['Department'])?.toString().trim() || '';
+                        const deptObj = standardizeDepartment(deptRaw);
+
+                        const newDoc: Doctor = {
+                            fingerprintCode: fpCode,
+                            fullNameArabic: doctorName,
+                            phoneNumber: '',
+                            classification: 'أخصائي',
+                            classificationRank: 2,
+                            specialty: '',
+                            department: deptObj.canonical || deptRaw,
+                            isActive: true,
+                        };
+                        newAutoRegisteredDoctors.push(newDoc);
+                        unregisteredSeenInThisFile.add(fpCode);
+
+                        // Trigger alert for missing info
+                        alertsApi.addAlert({
+                            type: 'missing_doctor',
+                            message: `تنبيه: تم رصد كود بصمة جديد (${fpCode} - ${doctorName}) في ملف المناوبات. يرجى إكمال بيانات الطبيب.`,
+                            relatedId: fpCode
+                        });
+                        newAlerts++;
+                    }
 
                     const deptRaw = (row['القسم'] || row['التخصص'] || row['Department'])?.toString().trim() || '';
                     const deptObj = standardizeDepartment(deptRaw);
@@ -83,29 +122,20 @@ export default function UploadRosterPage() {
                     const canonicalDept = deptObj.canonical || deptRaw;
 
                     Object.keys(row).forEach(key => {
-                        // Normalize key to handle Eastern Arabic numerals if any
                         const normalizedKey = key.toString().trim().replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
-
                         let dayNum = -1;
 
-                        // 1. If it's just a number
                         if (/^(0?[1-9]|[12][0-9]|3[01])$/.test(normalizedKey)) {
                             dayNum = parseInt(normalizedKey);
-                        }
-                        // 2. If it's a date string like "1-Feb-26"
-                        else {
+                        } else {
                             const match = normalizedKey.match(/^(0?[1-9]|[12][0-9]|3[01])([-/\s\.])/);
-                            if (match) {
-                                dayNum = parseInt(match[1]);
-                            }
+                            if (match) dayNum = parseInt(match[1]);
                         }
 
-                        // Check if dayNum is valid and matches our extraction
                         if (dayNum >= 1 && dayNum <= 31) {
                             const rawValue = row[key]?.toString().trim() || '';
                             const shiftCode = rawValue.toUpperCase();
 
-                            // Ignore empty, whitespace, asterisks, dashes, zeroes etc if mapped
                             if (shiftCode && !['-', '', '0', 'ملاحظات', '*'].includes(shiftCode)) {
                                 const dateStr = `${yearStr}-${monthStr}-${dayNum.toString().padStart(2, '0')}`;
                                 monthlyShifts.push({
@@ -126,27 +156,33 @@ export default function UploadRosterPage() {
 
                 if (parsedCount > 0) {
                     await rosterService.saveBatch(monthlyShifts, targetMonthPrefix);
-                    setStatus('success');
-                    if (newAlerts > 0) {
-                        alert(`تم رفع وتحديث جدول المناوبات بنجاح (${parsedCount} مناوبة).\nيوجد ${newAlerts} أقسام غير معروفة، تم إنشاء إشعارات بها في لوحة التحكم.`);
+                    if (newAutoRegisteredDoctors.length > 0) {
+                        await doctorService.saveBatch(newAutoRegisteredDoctors);
                     }
+                    setStatus('success');
+                    let successMsg = `تم رفع وتحديث جدول المناوبات بنجاح (${parsedCount} مناوبة).`;
+                    if (newAutoRegisteredDoctors.length > 0) {
+                        successMsg += `\nتم تسجيل ${newAutoRegisteredDoctors.length} أطباء جدد آلياً بنجاح.`;
+                    }
+                    if (newAlerts > 0) {
+                        successMsg += `\nيوجد ${newAlerts} تنبيهات جديدة في لوحة التحكم لمراجعة البيانات.`;
+                    }
+                    alert(successMsg);
                     setTimeout(() => {
                         router.push('/dashboard/admin/roster');
                     }, 2000);
                 } else {
-                    alert('لم يتم العثور على أي بيانات مناوبات صالحة في الملف، يرجى التاكد من توافق الأعمدة و وجود "كود البصمة" وأرقام الأيام.');
+                    alert('لم يتم العثور على أي بيانات مناوبات صالحة في الملف.');
                     setStatus('idle');
                 }
-
             } catch (error) {
                 console.error("Error parsing roster file:", error);
-                alert("حدث خطأ أثناء قراءة الملف. تأكد من صحة الصيغة.");
+                alert("حدث خطأ أثناء قراءة الملف.");
                 setStatus('error');
             } finally {
                 setIsUploading(false);
             }
         };
-
         reader.readAsArrayBuffer(file);
     };
 
@@ -184,7 +220,6 @@ export default function UploadRosterPage() {
                     </div>
                 ) : (
                     <div className="space-y-6">
-
                         <div className="bg-white p-8 rounded-3xl border border-border shadow-sm mb-6 flex flex-col md:flex-row gap-6 items-center">
                             <div className="flex-1 w-full space-y-2">
                                 <label className="text-sm font-black text-slate-700 flex items-center gap-2">
@@ -218,7 +253,6 @@ export default function UploadRosterPage() {
                                 </select>
                             </div>
                         </div>
-
 
                         <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-slate-200 border-dashed rounded-3xl cursor-pointer bg-slate-50/50 hover:bg-slate-50 transition-colors group">
                             <div className="flex flex-col items-center justify-center pt-5 pb-6">
@@ -276,7 +310,7 @@ export default function UploadRosterPage() {
                         ملاحظة هامة
                     </h4>
                     <p className="text-xs font-bold text-amber-800/80 leading-relaxed">
-                        سيقوم النظام بالبحث عن الأعمدة التي تبدأ أسمائها بأرقام الأيام (مثال: 1 أو 1-Feb) لاستخراج المناوبات وتجاهل الباقي. يرجى اختيار الشهر الصحيح لتجنب تداخل البيانات.
+                        سيقوم النظام بالبحث عن الأعمدة التي تبدأ أسمائها بأرقام الأيام لاستخراج المناوبات. إذا كان الطبيب غير مسجل سيتم إنشاؤه آلياً.
                     </p>
                 </div>
             </div>
