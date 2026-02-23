@@ -60,7 +60,11 @@ export const rosterService = {
         return snapshot.docs.map(doc => doc.data() as RosterRecord);
     },
     saveBatch: async (rosters: RosterRecord[], targetMonthPrefix: string): Promise<void> => {
-        // First delete existing rosters for the specific month to avoid duplicates
+        // 1. Identify unique doctors in this batch
+        const doctorIds = Array.from(new Set(rosters.map(r => r.doctorId)));
+
+        // 2. Surgical deletion: Only delete existing records for THESE doctors in THIS month
+        // This allows partial uploads (e.g. by department) without wiping the whole month
         const nextMonth = (monthStr: string) => {
             const [year, month] = monthStr.split('-').map(Number);
             if (month === 12) return `${year + 1}-01`;
@@ -68,31 +72,55 @@ export const rosterService = {
         };
         const nextPrefix = nextMonth(targetMonthPrefix);
 
-        const q = query(
-            collection(db, ROSTERS_COLLECTION),
-            where('date', '>=', targetMonthPrefix),
-            where('date', '<', nextPrefix)
-        );
-        const snapshot = await getDocs(q);
-
-        if (snapshot.docs.length > 0) {
-            await commitBatches(snapshot.docs, (batch, docSnap: any) => {
-                batch.delete(docSnap.ref);
-            });
+        // Fetch existing records for these doctors
+        // Firestore 'in' operator supports up to 30 values. We chunk the doctors.
+        const CHUNK_SIZE_IN = 30;
+        for (let i = 0; i < doctorIds.length; i += CHUNK_SIZE_IN) {
+            const chunk = doctorIds.slice(i, i + CHUNK_SIZE_IN);
+            const q = query(
+                collection(db, ROSTERS_COLLECTION),
+                where('doctorId', 'in', chunk),
+                where('date', '>=', targetMonthPrefix),
+                where('date', '<', nextPrefix)
+            );
+            const snapshot = await getDocs(q);
+            if (snapshot.docs.length > 0) {
+                const deleteBatch = writeBatch(db);
+                snapshot.docs.forEach(d => deleteBatch.delete(d.ref));
+                await deleteBatch.commit();
+            }
         }
 
+        // 3. Save new records with stable ID (date_doctorId)
         await commitBatches(rosters, (batch, roster) => {
-            // Replace any characters that might cause issues in doc IDs (like slashes)
-            const sanitizedShiftCode = (roster.shiftCode || 'UNKNOWN').replace(/[\/\s]/g, '_');
-            const docId = roster.id || `${roster.date}_${roster.doctorId}_${sanitizedShiftCode}`;
+            // FORCE stable ID: one doctor can only have one shift per day in this logic
+            // This prevents duplicates on re-upload
+            const docId = `${roster.date}_${roster.doctorId}`;
             const docRef = doc(db, ROSTERS_COLLECTION, docId);
             batch.set(docRef, { ...roster, id: docId });
         });
     },
     save: async (roster: RosterRecord): Promise<void> => {
-        const sanitizedShiftCode = (roster.shiftCode || 'UNKNOWN').replace(/[\/\s]/g, '_');
-        const docId = roster.id || `${roster.date}_${roster.doctorId}_${sanitizedShiftCode}`;
-        await setDoc(doc(db, ROSTERS_COLLECTION, docId), { ...roster, id: docId });
+        // 1. Surgical cleanup: Delete any existing records for THIS doctor on THIS specific date
+        // (Handles both stable IDs and legacy IDs that included shiftCode)
+        const q = query(
+            collection(db, ROSTERS_COLLECTION),
+            where('doctorId', '==', roster.doctorId),
+            where('date', '==', roster.date)
+        );
+        const snapshot = await getDocs(q);
+        const batch = writeBatch(db);
+
+        if (snapshot.docs.length > 0) {
+            snapshot.docs.forEach(d => batch.delete(d.ref));
+        }
+
+        // 2. Save the new record with stable ID
+        const docId = `${roster.date}_${roster.doctorId}`;
+        const docRef = doc(db, ROSTERS_COLLECTION, docId);
+        batch.set(docRef, { ...roster, id: docId });
+
+        await batch.commit();
     },
     delete: async (id: string): Promise<void> => {
         await deleteDoc(doc(db, ROSTERS_COLLECTION, id));

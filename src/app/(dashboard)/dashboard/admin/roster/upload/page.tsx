@@ -139,7 +139,6 @@ export default function UploadRosterPage() {
                             if (shiftCode && !['-', '', '0', 'ملاحظات', '*'].includes(shiftCode)) {
                                 const dateStr = `${yearStr}-${monthStr}-${dayNum.toString().padStart(2, '0')}`;
                                 monthlyShifts.push({
-                                    id: Math.random().toString(36).substr(2, 9),
                                     doctorId: fpCode,
                                     date: dateStr,
                                     shiftCode: shiftCode,
@@ -147,7 +146,7 @@ export default function UploadRosterPage() {
                                     source: 'ExcelUpload',
                                     lastModifiedBy: 'admin',
                                     lastModifiedAt: new Date().toISOString()
-                                });
+                                } as RosterRecord);
                                 parsedCount++;
                             }
                         }
