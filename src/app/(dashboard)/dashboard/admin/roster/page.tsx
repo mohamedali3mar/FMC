@@ -18,7 +18,8 @@ import {
     Lock,
     Unlock,
     Loader2,
-    Maximize2
+    Maximize2,
+    RefreshCw
 } from 'lucide-react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/PageHeader';
@@ -191,6 +192,24 @@ export default function RosterPage() {
                         >
                             {isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
                             <span>{isLocked ? 'الجدول مقفل' : 'تعديل الجدول'}</span>
+                        </button>
+                        <button
+                            onClick={async () => {
+                                if (window.confirm('هل أنت متأكد من رغبتك في تنظيف السجلات المكررة؟ سيقوم النظام بمسح السجلات القديمة وإبقاء سجل واحد فقط لكل طبيب في اليوم.')) {
+                                    try {
+                                        const result = await rosterService.cleanupDuplicates();
+                                        alert(`تم تنظيف قاعدة البيانات بنجاح. تم مسح ${result.deleted} سجل مكرر.`);
+                                        window.location.reload();
+                                    } catch (error) {
+                                        console.error(error);
+                                        alert('حدث خطأ أثناء التنظيف.');
+                                    }
+                                }
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-all font-bold text-sm shadow-lg shadow-amber-950/20"
+                        >
+                            <RefreshCw className="w-4 h-4" />
+                            <span>تنظيف البيانات</span>
                         </button>
                         <Link
                             href="/dashboard/admin/roster/grid"

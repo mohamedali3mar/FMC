@@ -124,6 +124,58 @@ export const rosterService = {
     },
     delete: async (id: string): Promise<void> => {
         await deleteDoc(doc(db, ROSTERS_COLLECTION, id));
+    },
+    cleanupDuplicates: async (): Promise<{ deleted: number }> => {
+        // 1. Fetch ALL records
+        const snapshot = await getDocs(collection(db, ROSTERS_COLLECTION));
+        const allRosters = snapshot.docs.map(d => d.data() as RosterRecord);
+
+        // 2. Group by (Date + Doctor)
+        const groups = new Map<string, RosterRecord[]>();
+        allRosters.forEach(r => {
+            const key = `${r.date}_${r.doctorId}`;
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key)!.push(r);
+        });
+
+        let deletedCount = 0;
+        const toDeleteIds: string[] = [];
+
+        for (const [key, records] of groups.entries()) {
+            if (records.length > 1) {
+                // Determine the winner to keep
+                // Priority 1: The one with the new stable ID format
+                // Priority 2: Most recently modified
+                let winner = records.find(r => r.id === key);
+                if (!winner) {
+                    winner = [...records].sort((a, b) =>
+                        new Date(b.lastModifiedAt || 0).getTime() - new Date(a.lastModifiedAt || 0).getTime()
+                    )[0];
+                }
+
+                // Any other ID in this group is a duplicate
+                records.forEach(r => {
+                    if (r.id !== winner!.id) {
+                        toDeleteIds.push(r.id);
+                    }
+                });
+            }
+        }
+
+        // 3. Batch delete in chunks of 450
+        if (toDeleteIds.length > 0) {
+            for (let i = 0; i < toDeleteIds.length; i += 450) {
+                const chunk = toDeleteIds.slice(i, i + 450);
+                const batch = writeBatch(db);
+                chunk.forEach(id => {
+                    batch.delete(doc(db, ROSTERS_COLLECTION, id));
+                });
+                await batch.commit();
+                deletedCount += chunk.length;
+            }
+        }
+
+        return { deleted: deletedCount };
     }
 };
 
