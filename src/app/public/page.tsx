@@ -2,7 +2,7 @@
 
 import { CallSheetDisplay } from "@/components/CallSheetDisplay";
 import Link from "next/link";
-import { Stethoscope } from "lucide-react";
+
 
 export default function PublicCallSheetPage() {
     return (

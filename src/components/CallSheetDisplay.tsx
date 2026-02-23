@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Loader2, Calendar, Phone, Printer, Sun, Moon, ChevronRight, ChevronLeft, Search, Download, Stethoscope, Copy, Check } from 'lucide-react';
+import { Loader2, Calendar, Phone, Printer, Sun, Moon, ChevronRight, ChevronLeft, Search, Download, Copy, Check } from 'lucide-react';
 import { mockShiftTypes } from '@/lib/mockData';
 import { Doctor, RosterRecord } from '@/lib/types';
 import { doctorService, rosterService } from '@/lib/firebase-service';
