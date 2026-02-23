@@ -38,45 +38,61 @@ const MEDICAL_SPECIALTIES = [
     'اشعة تشخيصية',
     'اطفال مبتسرين',
     'الاشعة التشخيصية',
+    'الأشعة التشخيصية',
     'الاشعة العلاجية والطب النووى',
+    'الأشعة العلاجية والطب النووي',
     'الامراض الصدرية',
+    'الأمراض الصدرية',
     'امراض السمعيات',
+    'أمراض السمعيات',
     'امراض روماتيزمية',
     'امراض عصبية',
     'امراض كلى',
     'امراض نفسية و عصبية',
     'ايكو قلب اطفال',
     'باثولوجيا اكلينيكية',
+    'الباثولوجيا الإكلينيكية',
     'باطنة عامة',
+    'الباطنة العامة',
     'بنك دم',
     'تخدير',
+    'التخدير',
     'جراحة اطفال',
+    'جراحة أطفال',
     'جراحة العظام',
     'جراحة انف واذن وحنجرة',
+    'الأنف والأذن والحنجرة',
     'جراحة اورام',
     'جراحة اوعية دموية',
     'جراحة تجميل و حروق',
     'جراحة عامة',
+    'الجراحة العامة',
     'جراحة قلب و صدر',
     'جراحة مخ واعصاب',
+    'المخ والأعصاب',
     'جراحة مسالك',
     'جراحة وجه وفكين',
     'جلدية وتناسلية',
     'جهاز هضمى',
     'جهاز هضمى وكبد',
+    'الجهاز الهضمي',
     'رعاية حرجة',
     'طب الاورام',
     'طب حالات حرجة',
     'طب و جراحة العيون',
+    'طب وجراحة العيون',
     'طوارئ',
+    'الطوارئ',
     'عناية مركزة',
+    'العناية المركزة',
     'عناية مركزة اطفال',
     'غدد صماء',
     'غسيل كلوى',
     'قلب واوعية',
     'مناظير الجراحة',
     'مناظير المفاصل',
-    'نسا وتوليد'
+    'نسا وتوليد',
+    'النساء والتوليد'
 ];
 
 function DoctorsContent() {
@@ -87,17 +103,42 @@ function DoctorsContent() {
     const [isSaving, setIsSaving] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentDoctor, setCurrentDoctor] = useState<Partial<Doctor> | null>(null);
+    const [isEditMode, setIsEditMode] = useState(false);
     const searchParams = useSearchParams();
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const prefillCode = searchParams.get('code');
     const prefillName = searchParams.get('name');
     const prefillSpecialty = searchParams.get('specialty');
+    const prefillDept = searchParams.get('dept');
 
     React.useEffect(() => {
         const fetchDoctors = async () => {
             try {
                 const data = await doctorService.getAll();
                 setDoctors(data);
+
+                // Handle pre-fill after doctors are loaded
+                if (prefillCode) {
+                    const existingDoctor = data.find(d => d.fingerprintCode === prefillCode);
+                    if (existingDoctor) {
+                        handleOpenModal({
+                            ...existingDoctor,
+                            department: prefillDept || existingDoctor.department,
+                            specialty: prefillSpecialty || existingDoctor.specialty,
+                        });
+                    } else {
+                        handleOpenModal({
+                            fingerprintCode: prefillCode,
+                            fullNameArabic: prefillName || '',
+                            phoneNumber: '',
+                            classification: 'أخصائي',
+                            classificationRank: 2,
+                            specialty: prefillSpecialty || '',
+                            department: prefillDept || '',
+                            isActive: true,
+                        });
+                    }
+                }
             } catch (error) {
                 console.error("Error fetching doctors:", error);
             } finally {
@@ -105,22 +146,7 @@ function DoctorsContent() {
             }
         };
         fetchDoctors();
-    }, []);
-
-    React.useEffect(() => {
-        if (!isLoading && prefillCode && !doctors.find(d => d.fingerprintCode === prefillCode)) {
-            handleOpenModal({
-                fingerprintCode: prefillCode,
-                fullNameArabic: prefillName || '',
-                phoneNumber: '',
-                classification: 'أخصائي',
-                classificationRank: 2,
-                specialty: prefillSpecialty || '',
-                department: '',
-                isActive: true,
-            });
-        }
-    }, [prefillCode, prefillName, prefillSpecialty]);
+    }, [prefillCode, prefillName, prefillSpecialty, prefillDept]);
 
     const filteredDoctors = doctors.filter(doctor => {
         const matchesSearch = doctor.fullNameArabic.includes(searchTerm) ||
@@ -133,7 +159,8 @@ function DoctorsContent() {
     const classifications: (Classification | 'الكل')[] = ['الكل', 'استشاري', 'أخصائي', 'طبيب مقيم'];
 
     const handleOpenModal = (doctor: Doctor | null = null) => {
-        setCurrentDoctor(doctor || {
+        setIsEditMode(!!doctor);
+        setCurrentDoctor(doctor ? { ...doctor } : {
             fingerprintCode: '',
             fullNameArabic: '',
             phoneNumber: '',
@@ -148,29 +175,67 @@ function DoctorsContent() {
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!currentDoctor) return;
+        if (!currentDoctor || !currentDoctor.fingerprintCode) return;
 
-        if (currentDoctor.fingerprintCode && doctors.find(d => d.fingerprintCode === currentDoctor.fingerprintCode && d.fingerprintCode !== (currentDoctor as Doctor).fingerprintCode)) {
-            alert('كود البصمة موجود بالفعل');
+        const isEditing = doctors.some(d => d.fingerprintCode === currentDoctor.fingerprintCode);
+
+        // Standardize department for consistency
+        const deptObj = standardizeDepartment(currentDoctor.department || '');
+        const finalDoctor: Doctor = {
+            fingerprintCode: currentDoctor.fingerprintCode.trim(),
+            fullNameArabic: (currentDoctor.fullNameArabic || '').trim(),
+            nationalId: (currentDoctor.nationalId || '').trim(),
+            phoneNumber: (currentDoctor.phoneNumber || '').trim(),
+            classification: currentDoctor.classification || 'أخصائي',
+            classificationRank: currentDoctor.classificationRank || 2,
+            specialty: (currentDoctor.specialty || '').trim(),
+            department: deptObj.canonical || (currentDoctor.department || '').trim(),
+            isActive: currentDoctor.isActive !== undefined ? currentDoctor.isActive : true,
+        };
+
+        if (!finalDoctor.fullNameArabic || !finalDoctor.fingerprintCode) {
+            alert('يرجى التأكد من إدخال كود البصمة والاسم');
+            return;
+        }
+
+        // Check if specialty is unrecognized
+        if (finalDoctor.specialty && !MEDICAL_SPECIALTIES.includes(finalDoctor.specialty)) {
+            const confirmNew = confirm(`تنبيه: التخصص "${finalDoctor.specialty}" غير موجود في القائمة المعتمدة. هل تريد حفظه على أي حال؟`);
+            if (!confirmNew) return;
+
+            alertsApi.addAlert({
+                type: 'system',
+                message: `تنبيه: تم إدراج طبيب (${finalDoctor.fullNameArabic}) بتخصص غير مسجل مسبقاً: "${finalDoctor.specialty}". يرجى التحقق من القوائم الأساسية.`,
+                relatedId: finalDoctor.fingerprintCode
+            });
+        }
+
+        // Strictly block if fingerprint code is used by another doctor
+        const conflictDoctor = doctors.find(d =>
+            d.fingerprintCode === finalDoctor.fingerprintCode &&
+            d.fullNameArabic !== finalDoctor.fullNameArabic
+        );
+
+        if (conflictDoctor) {
+            alert(`خطأ: كود البصمة (${finalDoctor.fingerprintCode}) مسجل بالفعل للطبيب: ${conflictDoctor.fullNameArabic}. لا يمكن تكراره.`);
             return;
         }
 
         setIsSaving(true);
         try {
-            await doctorService.save(currentDoctor as Doctor);
-            if (doctors.some(d => d.fingerprintCode === currentDoctor.fingerprintCode)) {
-                setDoctors(doctors.map(d => d.fingerprintCode === currentDoctor.fingerprintCode ? currentDoctor as Doctor : d));
+            await doctorService.save(finalDoctor);
+
+            if (isEditing) {
+                setDoctors(doctors.map(d => d.fingerprintCode === finalDoctor.fingerprintCode ? finalDoctor : d));
             } else {
-                setDoctors([...doctors, currentDoctor as Doctor]);
+                setDoctors([...doctors, finalDoctor]);
                 // Clear alert if it was a missing doctor registration
-                if (currentDoctor.fingerprintCode) {
-                    alertsApi.markAsReadByRelatedId(currentDoctor.fingerprintCode);
-                }
+                alertsApi.markAsReadByRelatedId(finalDoctor.fingerprintCode);
             }
             setIsModalOpen(false);
         } catch (error) {
             console.error("Error saving doctor:", error);
-            alert("حدث خطأ أثناء حفظ البيانات.");
+            alert("حدث خطأ أثناء حفظ البيانات. يرجى مراجعة الاتصال.");
         } finally {
             setIsSaving(false);
         }
@@ -260,22 +325,18 @@ function DoctorsContent() {
         reader.onload = async (evt) => {
             setIsLoading(true);
             try {
-                const bstr = evt.target?.result as string;
+                const dataBuffer = evt.target?.result as ArrayBuffer;
                 let data: any[] = [];
 
-                // Allow csv reading as well for robustness if template was used
-                if (file.name.endsWith('.csv')) {
-                    const wb = XLSX.read(bstr, { type: 'binary' }); // auto detects CSV usually from binary
-                    const wsname = wb.SheetNames[0];
-                    data = XLSX.utils.sheet_to_json(wb.Sheets[wsname]);
-                } else {
-                    const wb = XLSX.read(bstr, { type: 'binary' });
-                    const wsname = wb.SheetNames[0];
-                    data = XLSX.utils.sheet_to_json(wb.Sheets[wsname]);
-                }
+                // Standardize on array buffer reading for best compatibility
+                const wb = XLSX.read(dataBuffer, { type: 'array', cellDates: true });
+                const wsname = wb.SheetNames[0];
+                data = XLSX.utils.sheet_to_json(wb.Sheets[wsname]);
 
                 const newDoctors: Doctor[] = [];
+                const codesInFile = new Set<string>();
                 let errors = 0;
+                let conflicts = 0;
 
                 data.forEach((row, index) => {
                     // Skip the template example row if it's identical
@@ -283,38 +344,88 @@ function DoctorsContent() {
                         return;
                     }
 
-                    const fpCode = row['كود البصمة']?.toString().trim();
-                    const name = row['الاسم باللغة العربية']?.toString().trim() || row['الاسم الكامل']?.toString().trim();
-                    const nationalId = row['الرقم القومى']?.toString().trim() || row['الرقم القومي']?.toString().trim();
-                    const phone = row['رقم الهاتف']?.toString().trim();
-                    const classificationRaw = row['التصنيف']?.toString().trim() || 'أخصائي';
-
-                    // Map the classification based on provided sheet or default safely
-                    let classification: Classification = 'أخصائي';
-                    if (classificationRaw.includes('استشاري') || classificationRaw.includes('استشارى')) classification = 'استشاري';
-                    else if (classificationRaw.includes('مقيم') || classificationRaw.includes('طبيب مقيم')) classification = 'طبيب مقيم';
-                    else if (classificationRaw.includes('اخصائي') || classificationRaw.includes('أخصائي') || classificationRaw.includes('اخصائى') || classificationRaw.includes('أخصائى')) classification = 'أخصائي';
-
-                    const specialtyRaw = row['التخصص']?.toString().trim() || row['القسم']?.toString().trim() || '';
-                    const departmentRaw = row['القسم']?.toString().trim() || row['التخصص']?.toString().trim() || '';
-
-                    const deptObj = standardizeDepartment(departmentRaw);
-
-                    if (departmentRaw && !deptObj.isRecognized) {
-                        alertsApi.addAlert({
-                            type: 'system',
-                            message: `تنبيه: تم إدراج طبيب (${name}) بقسم غير مسجل مسبقاً: "${deptObj.raw}". يرجى التحقق من إملاء القسم.`,
-                            relatedId: fpCode
-                        });
-                    }
-
-                    const specialty = specialtyRaw;
-                    const department = deptObj.canonical || departmentRaw; // use canonical or fallback to raw
+                    // Flexible code mapping
+                    const fpCode = (row['كود البصمة'] || row['الكود'] || row['كود'] || row['Code'])?.toString().trim();
+                    const name = (row['الاسم باللغة العربية'] || row['الاسم الكامل'] || row['الاسم'] || row['Name'])?.toString().trim();
 
                     if (!fpCode || !name) {
                         errors++;
                         return;
                     }
+
+                    // Check for internal duplicates in the Excel file
+                    if (codesInFile.has(fpCode)) {
+                        conflicts++;
+                        alertsApi.addAlert({
+                            type: 'conflict',
+                            message: `تعارض داخلي: كود البصمة (${fpCode}) مكرر داخل ملف الإكسيل للطبيب "${name}".`,
+                            relatedId: fpCode
+                        });
+                        return;
+                    }
+                    codesInFile.add(fpCode);
+
+                    // Check for conflicts with existing doctors in DB
+                    const existingDoctor = doctors.find(d => d.fingerprintCode === fpCode);
+                    if (existingDoctor && existingDoctor.fullNameArabic !== name) {
+                        conflicts++;
+                        alertsApi.addAlert({
+                            type: 'conflict',
+                            message: `تعارض بيانات: كود البصمة (${fpCode}) مسجل مسبقاً للطبيب "${existingDoctor.fullNameArabic}"، ولا يمكن استخدامه للطبيب "${name}".`,
+                            relatedId: fpCode,
+                            metadata: {
+                                doctorName: name,
+                                department: (row['القسم'] || row['التخصص'] || row['Department'] || '').toString().trim()
+                            }
+                        });
+                        return;
+                    }
+
+                    const nationalId = (row['الرقم القومى'] || row['الرقم القومى'] || row['الرقم القومي'] || row['National ID'])?.toString().trim();
+                    const phone = (row['رقم الهاتف'] || row['الهاتف'] || row['Phone'])?.toString().trim();
+                    const classificationRaw = (row['التصنيف'] || row['الدرجة الوظيفية'] || row['Classification'])?.toString().trim() || 'أخصائي';
+
+                    // Map the classification based on provided sheet or default safely
+                    let classification: Classification = 'أخصائي';
+                    const cLower = classificationRaw.toLowerCase();
+                    if (cLower.includes('استشاري') || cLower.includes('استشارى') || cLower.includes('consultant')) classification = 'استشاري';
+                    else if (cLower.includes('مقيم') || cLower.includes('طبيب مقيم') || cLower.includes('resident')) classification = 'طبيب مقيم';
+                    else if (cLower.includes('اخصائي') || cLower.includes('أخصائي') || cLower.includes('اخصائى') || cLower.includes('أخصائى') || cLower.includes('specialist')) classification = 'أخصائي';
+
+                    // Prioritize 'التخصص' for professional background
+                    const specialtyRaw = (row['التخصص'] || row['القسم'] || row['Specialty'] || '').toString().trim();
+                    const departmentRaw = (row['القسم'] || row['التخصص'] || row['Department'] || '').toString().trim();
+
+                    const deptObj = standardizeDepartment(departmentRaw);
+
+                    if (specialtyRaw && !MEDICAL_SPECIALTIES.includes(specialtyRaw)) {
+                        alertsApi.addAlert({
+                            type: 'system',
+                            message: `تنبيه: طبيب (${name}) مدرج بتخصص غير مسجل مسبقاً: "${specialtyRaw}".`,
+                            relatedId: fpCode,
+                            metadata: {
+                                doctorName: name,
+                                specialty: specialtyRaw,
+                                department: departmentRaw
+                            }
+                        });
+                    }
+
+                    if (departmentRaw && !deptObj.isRecognized) {
+                        alertsApi.addAlert({
+                            type: 'system',
+                            message: `تنبيه: طبيب (${name}) مدرج بقسم إداري غير مسجل مسبقاً: "${departmentRaw}".`,
+                            relatedId: fpCode,
+                            metadata: {
+                                doctorName: name,
+                                specialty: specialtyRaw,
+                                department: departmentRaw
+                            }
+                        });
+                    }
+
+                    const specialty = specialtyRaw;
+                    const department = deptObj.canonical || departmentRaw;
 
                     const rank = classification === 'استشاري' ? 1 : classification === 'أخصائي' ? 2 : 3;
 
@@ -339,19 +450,30 @@ function DoctorsContent() {
                     if (addedDocs.length > 0) {
                         await doctorService.saveBatch(addedDocs);
                         setDoctors(prev => [...prev, ...addedDocs]);
-                        alert(`تم رفع وإضافة ${addedDocs.length} طبيب بنجاح`);
-                    } else if (errors === 0) {
+
+                        let msg = `تم رفع وإضافة ${addedDocs.length} طبيب بنجاح.`;
+                        if (conflicts > 0) msg += `\nتم تخطي ${conflicts} سطر بسبب تعارض كود البصمة (راجع التنبيهات).`;
+                        alert(msg);
+                    } else if (errors === 0 && conflicts === 0) {
                         alert('جميع الأطباء في الملف مضافون مسبقاً.');
+                    } else if (conflicts > 0) {
+                        alert(`لم يتم إضافة أطباء جدد. تم تخطي ${conflicts} سطر بسبب تعارض كود البصمة مع سجلات أخرى.`);
                     }
+                } else if (errors > 0 || conflicts > 0 || data.length > 0) {
+                    let msg = "لم يتم إضافة أطباء جدد.";
+                    if (conflicts > 0) msg += `\nوجد ${conflicts} تعارض في بيانات كود البصمة (راجع التنبيهات للاطلاع على التفاصيل).`;
+                    if (errors > 0) msg += `\nوجد ${errors} سطر ببيانات ناقصة.`;
+                    alert(msg);
                 }
 
                 if (errors > 0) {
-                    alert(`لم يتم استيراد ${errors} صف بسبب نقص البيانات الأساسية (كود البصمة أو الاسم).`);
+                    console.warn(`Skipped ${errors} rows due to missing essential data.`);
                 }
 
-            } catch (e) {
-                console.error("Error parsing/saving file", e);
-                alert("حدث خطأ أثناء قراءة البيانات أو حفظها.");
+            } catch (e: any) {
+                console.error("Error parsing/saving doctor file:", e);
+                const errorMsg = e?.message || "غير معروف";
+                alert(`حدث خطأ أثناء قراءة البيانات أو حفظها: ${errorMsg}\nتأكد من صلاحيات Firebase ومن صيغة الملف.`);
             } finally {
                 setIsLoading(false);
             }
@@ -360,7 +482,7 @@ function DoctorsContent() {
                 fileInputRef.current.value = '';
             }
         };
-        reader.readAsBinaryString(file);
+        reader.readAsArrayBuffer(file);
     };
 
     return (
@@ -579,7 +701,7 @@ function DoctorsContent() {
                                     </label>
                                     <input
                                         required
-                                        disabled={!!(currentDoctor as Doctor)?.fingerprintCode && doctors.some(d => d.fingerprintCode === currentDoctor?.fingerprintCode)}
+                                        disabled={isEditMode}
                                         className="w-full px-4 py-3 rounded-xl border border-border focus:ring-4 focus:ring-primary/10 transition-all font-bold placeholder:font-normal bg-slate-50/50"
                                         placeholder="D005"
                                         value={currentDoctor?.fingerprintCode || ''}

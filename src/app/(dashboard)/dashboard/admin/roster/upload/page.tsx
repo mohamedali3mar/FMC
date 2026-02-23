@@ -42,8 +42,8 @@ export default function UploadRosterPage() {
         const reader = new FileReader();
         reader.onload = async (evt) => {
             try {
-                const bstr = evt.target?.result as string;
-                const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
+                const dataBuffer = evt.target?.result as ArrayBuffer;
+                const wb = XLSX.read(dataBuffer, { type: 'array', cellDates: true });
                 const wsname = wb.SheetNames[0];
                 const data = XLSX.utils.sheet_to_json<any>(wb.Sheets[wsname], { raw: false, defval: "" });
 
@@ -53,11 +53,12 @@ export default function UploadRosterPage() {
                 let monthlyShifts: RosterRecord[] = [];
                 const targetMonthPrefix = `${yearStr}-${monthStr}`;
 
-                data.forEach((row) => {
-                    const fpCode = row['كود البصمة']?.toString().trim() || row['الكود']?.toString().trim();
+                data.forEach((row, index) => {
+                    // Flexible mapping for roster codes
+                    const fpCode = (row['كود البصمة'] || row['الكود'] || row['كود'] || row['Code'])?.toString().trim();
                     if (!fpCode || fpCode === '') return;
 
-                    const deptRaw = row['القسم']?.toString().trim() || row['التخصص']?.toString().trim() || '';
+                    const deptRaw = (row['القسم'] || row['التخصص'] || row['Department'])?.toString().trim() || '';
                     const deptObj = standardizeDepartment(deptRaw);
 
                     if (deptRaw && !deptObj.isRecognized) {
@@ -128,7 +129,7 @@ export default function UploadRosterPage() {
                 }
 
             } catch (error) {
-                console.error("Error parsing roster file", error);
+                console.error("Error parsing roster file:", error);
                 alert("حدث خطأ أثناء قراءة الملف. تأكد من صحة الصيغة.");
                 setStatus('error');
             } finally {
@@ -136,7 +137,7 @@ export default function UploadRosterPage() {
             }
         };
 
-        reader.readAsBinaryString(file);
+        reader.readAsArrayBuffer(file);
     };
 
     return (

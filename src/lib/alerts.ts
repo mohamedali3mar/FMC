@@ -17,6 +17,12 @@ export const alertsApi = {
             return;
         }
 
+        // Avoid duplicate system or conflict alerts for the same message and doctor/related entity
+        if ((alert.type === 'system' || alert.type === 'conflict') &&
+            alerts.some(a => a.relatedId === alert.relatedId && a.message === alert.message)) {
+            return;
+        }
+
         const newAlert: DashboardAlert = {
             ...alert,
             id: Math.random().toString(36).substr(2, 9),

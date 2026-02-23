@@ -61,6 +61,7 @@ export interface DashboardAlert {
     metadata?: {
         doctorName?: string;
         specialty?: string;
+        department?: string;
     };
     createdAt: string;
     isRead: boolean;
