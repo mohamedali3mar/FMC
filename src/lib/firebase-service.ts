@@ -125,9 +125,26 @@ export const rosterService = {
     delete: async (id: string): Promise<void> => {
         await deleteDoc(doc(db, ROSTERS_COLLECTION, id));
     },
-    cleanupDuplicates: async (): Promise<{ deleted: number }> => {
-        // 1. Fetch ALL records
-        const snapshot = await getDocs(collection(db, ROSTERS_COLLECTION));
+    cleanupDuplicates: async (monthPrefix?: string): Promise<{ deleted: number }> => {
+        // 1. Fetch records (Filter by month if prefix provided)
+        let snapshot;
+        if (monthPrefix) {
+            const nextMonth = (monthStr: string) => {
+                const [year, month] = monthStr.split('-').map(Number);
+                if (month === 12) return `${year + 1}-01`;
+                return `${year}-${String(month + 1).padStart(2, '0')}`;
+            };
+            const nextPrefix = nextMonth(monthPrefix);
+            const q = query(
+                collection(db, ROSTERS_COLLECTION),
+                where('date', '>=', monthPrefix),
+                where('date', '<', nextPrefix)
+            );
+            snapshot = await getDocs(q);
+        } else {
+            snapshot = await getDocs(collection(db, ROSTERS_COLLECTION));
+        }
+
         const allRosters = snapshot.docs.map(d => d.data() as RosterRecord);
 
         // 2. Group by (Date + Doctor)
@@ -144,8 +161,6 @@ export const rosterService = {
         for (const [key, records] of groups.entries()) {
             if (records.length > 1) {
                 // Determine the winner to keep
-                // Priority 1: The one with the new stable ID format
-                // Priority 2: Most recently modified
                 let winner = records.find(r => r.id === key);
                 if (!winner) {
                     winner = [...records].sort((a, b) =>
@@ -153,7 +168,6 @@ export const rosterService = {
                     )[0];
                 }
 
-                // Any other ID in this group is a duplicate
                 records.forEach(r => {
                     if (r.id !== winner!.id) {
                         toDeleteIds.push(r.id);

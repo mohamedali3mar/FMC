@@ -195,10 +195,12 @@ export default function RosterPage() {
                         </button>
                         <button
                             onClick={async () => {
-                                if (window.confirm('هل أنت متأكد من رغبتك في تنظيف السجلات المكررة؟ سيقوم النظام بمسح السجلات القديمة وإبقاء سجل واحد فقط لكل طبيب في اليوم.')) {
+                                const monthName = format(currentDate, 'MMMM yyyy', { locale: ar });
+                                if (window.confirm(`هل أنت متأكد من رغبتك في تنظيف السجلات المكررة لشهر ${monthName}؟ سيقوم النظام بمسح السجلات القديمة وإبقاء سجل واحد فقط لكل طبيب في اليوم.`)) {
                                     try {
-                                        const result = await rosterService.cleanupDuplicates();
-                                        alert(`تم تنظيف قاعدة البيانات بنجاح. تم مسح ${result.deleted} سجل مكرر.`);
+                                        const monthPrefix = format(currentDate, 'yyyy-MM');
+                                        const result = await rosterService.cleanupDuplicates(monthPrefix);
+                                        alert(`تم تنظيف بيانات شهر ${monthName} بنجاح. تم مسح ${result.deleted} سجل مكرر.`);
                                         window.location.reload();
                                     } catch (error) {
                                         console.error(error);
