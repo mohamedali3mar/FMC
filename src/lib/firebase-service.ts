@@ -42,21 +42,36 @@ export const rosterService = {
         return snapshot.docs.map(doc => doc.data() as RosterRecord);
     },
     getByMonth: async (monthPrefix: string): Promise<RosterRecord[]> => {
-        // Optimizing query using date range: monthPrefix is YYYY-MM
+        // monthPrefix is YYYY-MM
+        // A more robust range query: from YYYY-MM to the beginning of the next month
+        const nextMonth = (monthStr: string) => {
+            const [year, month] = monthStr.split('-').map(Number);
+            if (month === 12) return `${year + 1}-01`;
+            return `${year}-${String(month + 1).padStart(2, '0')}`;
+        };
+        const nextPrefix = nextMonth(monthPrefix);
+
         const q = query(
             collection(db, ROSTERS_COLLECTION),
             where('date', '>=', monthPrefix),
-            where('date', '<=', monthPrefix + '\uf8ff')
+            where('date', '<', nextPrefix)
         );
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => doc.data() as RosterRecord);
     },
     saveBatch: async (rosters: RosterRecord[], targetMonthPrefix: string): Promise<void> => {
         // First delete existing rosters for the specific month to avoid duplicates
+        const nextMonth = (monthStr: string) => {
+            const [year, month] = monthStr.split('-').map(Number);
+            if (month === 12) return `${year + 1}-01`;
+            return `${year}-${String(month + 1).padStart(2, '0')}`;
+        };
+        const nextPrefix = nextMonth(targetMonthPrefix);
+
         const q = query(
             collection(db, ROSTERS_COLLECTION),
             where('date', '>=', targetMonthPrefix),
-            where('date', '<=', targetMonthPrefix + '\uf8ff')
+            where('date', '<', nextPrefix)
         );
         const snapshot = await getDocs(q);
 

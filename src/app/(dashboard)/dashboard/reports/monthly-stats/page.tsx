@@ -42,14 +42,19 @@ export default function MonthlyStatsPage() {
                 const monthStr = String(selectedMonth + 1).padStart(2, '0');
                 const monthFilter = `${selectedYear}-${monthStr}`;
 
+                console.log(`[Stats] Loading data for ${monthFilter}...`);
+
                 let [docsData, rosterData, shiftsData] = await Promise.all([
                     doctorService.getAll(),
                     rosterService.getByMonth(monthFilter),
                     shiftService.getAll()
                 ]);
 
+                console.log(`[Stats] Fetched: ${docsData.length} doctors, ${rosterData.length} rosters, ${shiftsData.length} shifts.`);
+
                 // Auto-seed shifts if missing
                 if (shiftsData.length === 0) {
+                    console.log("[Stats] No shift types found, seeding with mock data...");
                     const { mockShiftTypes } = await import('@/lib/mockData');
                     await shiftService.saveBatch(mockShiftTypes);
                     shiftsData = mockShiftTypes;
@@ -59,7 +64,7 @@ export default function MonthlyStatsPage() {
                 setRosters(rosterData);
                 setShifts(shiftsData);
             } catch (error) {
-                console.error("Error loading stats data:", error);
+                console.error("[Stats] Error loading data:", error);
             } finally {
                 setIsLoading(false);
             }
