@@ -43,24 +43,20 @@ export const rosterService = {
     },
     getByMonth: async (monthPrefix: string): Promise<RosterRecord[]> => {
         // Optimizing query using date range: monthPrefix is YYYY-MM
-        const start = `${monthPrefix}-01`;
-        const end = `${monthPrefix}-31`;
         const q = query(
             collection(db, ROSTERS_COLLECTION),
-            where('date', '>=', start),
-            where('date', '<=', end)
+            where('date', '>=', monthPrefix),
+            where('date', '<=', monthPrefix + '\uf8ff')
         );
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => doc.data() as RosterRecord);
     },
     saveBatch: async (rosters: RosterRecord[], targetMonthPrefix: string): Promise<void> => {
         // First delete existing rosters for the specific month to avoid duplicates
-        const start = `${targetMonthPrefix}-01`;
-        const end = `${targetMonthPrefix}-31`;
         const q = query(
             collection(db, ROSTERS_COLLECTION),
-            where('date', '>=', start),
-            where('date', '<=', end)
+            where('date', '>=', targetMonthPrefix),
+            where('date', '<=', targetMonthPrefix + '\uf8ff')
         );
         const snapshot = await getDocs(q);
 
@@ -71,7 +67,9 @@ export const rosterService = {
         }
 
         await commitBatches(rosters, (batch, roster) => {
-            const docId = `${roster.date}_${roster.doctorId}_${roster.shiftCode}`;
+            // Replace any characters that might cause issues in doc IDs (like slashes)
+            const sanitizedShiftCode = (roster.shiftCode || 'UNKNOWN').replace(/[\/\s]/g, '_');
+            const docId = `${roster.date}_${roster.doctorId}_${sanitizedShiftCode}`;
             const docRef = doc(db, ROSTERS_COLLECTION, docId);
             batch.set(docRef, roster);
         });

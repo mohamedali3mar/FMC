@@ -90,10 +90,21 @@ export default function MonthlyStatsPage() {
             const inferredDept = doctorShifts[0]?.department || (registeredDoctor?.department || '');
 
             doctorShifts.forEach(record => {
-                const shiftType = shifts.find(s => s.code === record.shiftCode);
-                if (shiftType && shiftType.countsAsWorkingShift) {
-                    shiftCounts[record.shiftCode] = (shiftCounts[record.shiftCode] || 0) + 1;
-                    totalHours += shiftType.durationHours;
+                const shiftCode = (record.shiftCode || '').trim().toUpperCase();
+                const shiftType = shifts.find(s => s.code.toUpperCase() === shiftCode);
+
+                // Track counts for the breakdown UI
+                shiftCounts[shiftCode] = (shiftCounts[shiftCode] || 0) + 1;
+
+                // If shift type is found, use its duration
+                if (shiftType) {
+                    if (shiftType.countsAsWorkingShift) {
+                        totalHours += shiftType.durationHours;
+                        totalShifts += 1;
+                    }
+                } else {
+                    // Fallback: If shift type is NOT found, count it as 1 shift and 0 hours
+                    // This ensures the user sees that something was recorded
                     totalShifts += 1;
                 }
             });
@@ -109,11 +120,13 @@ export default function MonthlyStatsPage() {
                 totalHours,
                 shiftCounts
             };
-        }).filter(d =>
-            d.fullNameArabic.includes(searchTerm) ||
-            (d.department || d.specialty || '').includes(searchTerm) ||
-            d.fingerprintCode.includes(searchTerm)
-        ).sort((a, b) => b.totalShifts - a.totalShifts);
+        }).filter(d => {
+            const search = searchTerm.trim().toLowerCase();
+            if (!search) return true;
+            return d.fullNameArabic.toLowerCase().includes(search) ||
+                (d.department || d.specialty || '').toLowerCase().includes(search) ||
+                d.fingerprintCode.toLowerCase().includes(search);
+        }).sort((a, b) => b.totalShifts - a.totalShifts);
     }, [doctors, rosters, shifts, searchTerm]);
 
     const handleExport = () => {
@@ -207,6 +220,7 @@ export default function MonthlyStatsPage() {
                             <tbody className="divide-y divide-slate-100">
                                 {statsData.map((doc) => (
                                     <tr key={doc.fingerprintCode} className="hover:bg-slate-50/50 transition-colors group">
+                                        {/* ... abbreviated for safety ... */}
                                         <td className="py-5 px-8">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
@@ -269,6 +283,17 @@ export default function MonthlyStatsPage() {
                                         </td>
                                     </tr>
                                 ))}
+                                {statsData.length === 0 && (
+                                    <tr>
+                                        <td colSpan={5} className="py-20 text-center">
+                                            <div className="flex flex-col items-center gap-4 text-slate-300">
+                                                <BarChart3 className="w-12 h-12 opacity-20" />
+                                                <p className="font-black italic text-slate-400">لا توجد سجلات مناوبات لشهر {months[selectedMonth]} {selectedYear}</p>
+                                                <p className="text-xs font-bold text-slate-300">يرجى التأكد من اختيار الشهر الصحيح أو رفع جدول جديد.</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
