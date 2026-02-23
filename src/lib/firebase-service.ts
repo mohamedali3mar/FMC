@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import { collection, doc, getDocs, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc, deleteDoc, writeBatch, query, where } from 'firebase/firestore';
 import { Doctor, RosterRecord, ShiftType } from './types';
 
 const DOCTORS_COLLECTION = 'doctors';
@@ -42,17 +42,30 @@ export const rosterService = {
         return snapshot.docs.map(doc => doc.data() as RosterRecord);
     },
     getByMonth: async (monthPrefix: string): Promise<RosterRecord[]> => {
-        const snapshot = await getDocs(collection(db, ROSTERS_COLLECTION));
-        return snapshot.docs
-            .map(doc => doc.data() as RosterRecord)
-            .filter(r => r.date.startsWith(monthPrefix));
+        // Optimizing query using date range: monthPrefix is YYYY-MM
+        const start = `${monthPrefix}-01`;
+        const end = `${monthPrefix}-31`;
+        const q = query(
+            collection(db, ROSTERS_COLLECTION),
+            where('date', '>=', start),
+            where('date', '<=', end)
+        );
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => doc.data() as RosterRecord);
     },
     saveBatch: async (rosters: RosterRecord[], targetMonthPrefix: string): Promise<void> => {
-        const snapshot = await getDocs(collection(db, ROSTERS_COLLECTION));
-        const toDelete = snapshot.docs.filter(doc => (doc.data() as RosterRecord).date.startsWith(targetMonthPrefix));
+        // First delete existing rosters for the specific month to avoid duplicates
+        const start = `${targetMonthPrefix}-01`;
+        const end = `${targetMonthPrefix}-31`;
+        const q = query(
+            collection(db, ROSTERS_COLLECTION),
+            where('date', '>=', start),
+            where('date', '<=', end)
+        );
+        const snapshot = await getDocs(q);
 
-        if (toDelete.length > 0) {
-            await commitBatches(toDelete, (batch, docSnap: any) => {
+        if (snapshot.docs.length > 0) {
+            await commitBatches(snapshot.docs, (batch, docSnap: any) => {
                 batch.delete(docSnap.ref);
             });
         }

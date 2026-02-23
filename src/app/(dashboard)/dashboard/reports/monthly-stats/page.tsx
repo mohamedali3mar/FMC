@@ -42,11 +42,18 @@ export default function MonthlyStatsPage() {
                 const monthStr = String(selectedMonth + 1).padStart(2, '0');
                 const monthFilter = `${selectedYear}-${monthStr}`;
 
-                const [docsData, rosterData, shiftsData] = await Promise.all([
+                let [docsData, rosterData, shiftsData] = await Promise.all([
                     doctorService.getAll(),
                     rosterService.getByMonth(monthFilter),
                     shiftService.getAll()
                 ]);
+
+                // Auto-seed shifts if missing
+                if (shiftsData.length === 0) {
+                    const { mockShiftTypes } = await import('@/lib/mockData');
+                    await shiftService.saveBatch(mockShiftTypes);
+                    shiftsData = mockShiftTypes;
+                }
 
                 setDoctors(docsData);
                 setRosters(rosterData);
@@ -61,14 +68,26 @@ export default function MonthlyStatsPage() {
     }, [selectedMonth, selectedYear]);
 
     const statsData = useMemo(() => {
-        return doctors.map(doctor => {
-            const doctorShifts = rosters.filter(r =>
-                r.doctorId === doctor.fingerprintCode
-            );
+        // Create a map of all doctors for quick lookup
+        const doctorMap = new Map(doctors.map(d => [d.fingerprintCode, d]));
+
+        // Find all unique doctor IDs in the roster records
+        const rosterDoctorIds = Array.from(new Set(rosters.map(r => r.doctorId)));
+
+        // Any doctor in the main database OR in the roster records should be considered
+        const allRelevantDoctorIds = Array.from(new Set([...doctors.map(d => d.fingerprintCode), ...rosterDoctorIds]));
+
+        return allRelevantDoctorIds.map(fingerprint => {
+            const registeredDoctor = doctorMap.get(fingerprint);
+            const doctorShifts = rosters.filter(r => r.doctorId === fingerprint);
 
             const shiftCounts: Record<string, number> = {};
             let totalHours = 0;
             let totalShifts = 0;
+
+            // Use the department from the first roster record if the doctor isn't registered
+            // or if the roster record has a specific department override
+            const inferredDept = doctorShifts[0]?.department || (registeredDoctor?.department || '');
 
             doctorShifts.forEach(record => {
                 const shiftType = shifts.find(s => s.code === record.shiftCode);
@@ -80,7 +99,12 @@ export default function MonthlyStatsPage() {
             });
 
             return {
-                ...doctor,
+                fingerprintCode: fingerprint,
+                fullNameArabic: registeredDoctor?.fullNameArabic || `طبيب غير مسجل (${fingerprint})`,
+                specialty: registeredDoctor?.specialty || 'غير معروف',
+                classification: registeredDoctor?.classification || '---',
+                department: inferredDept,
+                isRegistered: !!registeredDoctor,
                 totalShifts,
                 totalHours,
                 shiftCounts
@@ -190,7 +214,14 @@ export default function MonthlyStatsPage() {
                                                 </div>
                                                 <div>
                                                     <p className="font-black text-slate-900">{doc.fullNameArabic}</p>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">كود: {doc.fingerprintCode}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">كود: {doc.fingerprintCode}</p>
+                                                        {!doc.isRegistered && (
+                                                            <span className="text-[8px] font-black bg-rose-50 text-rose-500 px-1.5 py-0.5 rounded border border-rose-100 animate-pulse">
+                                                                غير مسجل في النظام
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </td>
@@ -198,8 +229,13 @@ export default function MonthlyStatsPage() {
                                             <div className="flex flex-col gap-1">
                                                 <span className="font-bold text-slate-700 flex items-center gap-1">
                                                     <Stethoscope className="w-3.5 h-3.5 text-slate-400" />
-                                                    {doc.specialty}
+                                                    {doc.department || doc.specialty}
                                                 </span>
+                                                {doc.department && doc.specialty && doc.department !== doc.specialty && (
+                                                    <span className="text-[10px] font-medium text-slate-400">
+                                                        التخصص: {doc.specialty}
+                                                    </span>
+                                                )}
                                                 <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded w-fit">
                                                     {doc.classification}
                                                 </span>
