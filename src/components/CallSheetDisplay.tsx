@@ -413,9 +413,8 @@ function OfficialPrintReport({ groupedData, selectedDate }: { groupedData: any[]
                 <div className="text-left w-1/3 flex flex-col justify-between items-end">
                     <p className="font-bold" dir="ltr">General Authority for Healthcare</p>
 
-                    <div className="mt-4 pt-2 w-full max-w-[200px] border-t border-slate-300 text-right">
-                        <p className="font-bold text-sm">اليوم والتاريخ:</p>
-                        <p className="font-bold mt-1 text-sm bg-slate-100 py-1 px-2 rounded-md inline-block w-full text-center">
+                    <div className="mt-2 w-full max-w-[200px] text-right">
+                        <p className="font-bold text-sm bg-slate-100 py-2 px-3 rounded-md inline-block w-full text-center border border-slate-200">
                             {formatDate(selectedDate)}
                         </p>
                     </div>
