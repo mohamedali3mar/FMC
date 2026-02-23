@@ -15,6 +15,41 @@ import {
 import { format, getDaysInMonth, startOfMonth, addDays } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
+// Fixed order for departments as per the "Operational Schedule" (الجدول التشغيلي)
+const DEPARTMENT_ORDER = [
+    'الجراحة العامة',
+    'جراحة العظام',
+    'جراحة المسالك البولية',
+    'جراحة المخ والأعصاب',
+    'جراحة التجميل',
+    'جراحة أوعية دموية',
+    'جراحة أطفال',
+    'جراحة القلب والصدر',
+    'جراحة الوجه والفكين',
+    'النساء والتوليد',
+    'التخدير',
+    'العناية المركزة',
+    'رعاية حرجة',
+    'الحضانات',
+    'الطوارئ',
+    'الباطنة العامة',
+    'الأطفال',
+    'القلب',
+    'الجهاز الهضمي',
+    'الأمراض الصدرية',
+    'غسيل كلوى',
+    'الكلى',
+    'الروماتيزم',
+    'الجلدية',
+    'طب وجراحة العيون',
+    'الأنف والأذن والحنجرة',
+    'الأشعة التشخيصية',
+    'بنك الدم',
+    'الباثولوجيا الإكلينيكية',
+    'المعمل',
+    'الصيدلية'
+];
+
 interface RosterGridViewProps {
     currentDate: Date;
     doctors: Doctor[];
@@ -80,7 +115,19 @@ export function RosterGridView({
         });
 
         return {
-            groups: Object.entries(groups).sort(([a], [b]) => a.localeCompare(b, 'ar')),
+            groups: Object.entries(groups).sort(([a], [b]) => {
+                const indexA = DEPARTMENT_ORDER.indexOf(a);
+                const indexB = DEPARTMENT_ORDER.indexOf(b);
+
+                // If both are in the order list, follow the list
+                if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+                // If only A is in the list, it comes first
+                if (indexA !== -1) return -1;
+                // If only B is in the list, it comes first
+                if (indexB !== -1) return 1;
+                // Otherwise alphabetical
+                return a.localeCompare(b, 'ar');
+            }),
             activeCount: activeDoctorIds.size,
             totalDisplayed: filtered.length
         };
