@@ -35,6 +35,8 @@ export default function MonthlyStatsPage() {
         'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
     ];
 
+    const [totalCollectionCount, setTotalCollectionCount] = useState<number | null>(null);
+
     React.useEffect(() => {
         const loadData = async () => {
             setIsLoading(true);
@@ -44,6 +46,10 @@ export default function MonthlyStatsPage() {
 
                 console.log(`[Stats] Loading data for ${monthFilter}...`);
 
+                // Also get a count of ALL records in the collection for debugging
+                const allRosters = await rosterService.getAll();
+                setTotalCollectionCount(allRosters.length);
+
                 let [docsData, rosterData, shiftsData] = await Promise.all([
                     doctorService.getAll(),
                     rosterService.getByMonth(monthFilter),
@@ -51,6 +57,9 @@ export default function MonthlyStatsPage() {
                 ]);
 
                 console.log(`[Stats] Fetched: ${docsData.length} doctors, ${rosterData.length} rosters, ${shiftsData.length} shifts.`);
+                if (rosterData.length > 0) {
+                    console.log(`[Stats] First record date sample: ${rosterData[0].date}`);
+                }
 
                 // Auto-seed shifts if missing
                 if (shiftsData.length === 0) {
@@ -294,6 +303,10 @@ export default function MonthlyStatsPage() {
                                                 <BarChart3 className="w-12 h-12 opacity-20" />
                                                 <p className="font-black italic text-slate-400">لا توجد سجلات مناوبات لشهر {months[selectedMonth]} {selectedYear}</p>
                                                 <div className="flex flex-col gap-1 text-[10px] font-bold text-slate-400 mt-2 bg-slate-50 p-4 rounded-2xl border border-slate-100 min-w-[200px]">
+                                                    <div className="flex justify-between gap-4">
+                                                        <span>إجمالي السجلات (قاعدة البيانات):</span>
+                                                        <span className="text-primary">{totalCollectionCount ?? '...'}</span>
+                                                    </div>
                                                     <div className="flex justify-between gap-4">
                                                         <span>الأطباء المسجلون:</span>
                                                         <span className="text-primary">{doctors.length}</span>
