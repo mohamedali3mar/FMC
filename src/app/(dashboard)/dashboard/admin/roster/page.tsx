@@ -14,12 +14,15 @@ import {
     Search,
     Download,
     X,
-    FileText
+    FileText,
+    Edit2,
+    Trash2,
+    Save
 } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { mockShiftTypes } from '@/lib/mockData';
-import { RosterRecord, Doctor } from '@/lib/types';
-import { rosterService, doctorService } from '@/lib/firebase-service';
+import { RosterRecord, Doctor, ShiftType } from '@/lib/types';
+import { rosterService, doctorService, shiftService } from '@/lib/firebase-service';
 import { cn } from '@/lib/utils';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, getDay } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -32,20 +35,25 @@ export default function RosterPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [rosters, setRosters] = useState<RosterRecord[]>([]);
     const [doctors, setDoctors] = useState<Doctor[]>([]);
+    const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+    const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
+    const [currentAssignment, setCurrentAssignment] = useState<Partial<RosterRecord> | null>(null);
 
     React.useEffect(() => {
         const loadData = async () => {
             setIsLoading(true);
             try {
                 const monthFilter = format(currentDate, 'yyyy-MM');
-                const [docsData, rosterData] = await Promise.all([
+                const [docsData, rosterData, shiftsData] = await Promise.all([
                     doctorService.getAll(),
-                    rosterService.getByMonth(monthFilter)
+                    rosterService.getByMonth(monthFilter),
+                    shiftService.getAll()
                 ]);
                 setDoctors(docsData);
                 setRosters(rosterData);
+                setShiftTypes(shiftsData.length > 0 ? shiftsData : mockShiftTypes);
             } catch (error) {
                 console.error("Error loading roster data:", error);
             } finally {
@@ -109,6 +117,53 @@ export default function RosterPage() {
         XLSX.utils.book_append_sheet(wb, ws, 'الجدول التشغيلي');
         ws['!dir'] = 'rtl';
         forceDownloadExcel(wb, `Roster_${monthFilter}.xlsx`);
+    };
+
+    const handleOpenAssignmentModal = (day: Date, roster: RosterRecord | null = null) => {
+        if (isLocked) return;
+        setCurrentAssignment(roster || {
+            date: format(day, 'yyyy-MM-dd'),
+            doctorId: '',
+            shiftCode: '',
+            department: '',
+            id: '',
+        });
+        setIsAssignmentModalOpen(true);
+    };
+
+    const handleSaveAssignment = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!currentAssignment || !currentAssignment.doctorId || !currentAssignment.shiftCode) return;
+
+        try {
+            setIsLoading(true);
+            const roster = currentAssignment as RosterRecord;
+            await rosterService.save(roster);
+
+            // Update local state
+            const monthFilter = format(currentDate, 'yyyy-MM');
+            const updatedRosters = await rosterService.getByMonth(monthFilter);
+            setRosters(updatedRosters);
+            setIsAssignmentModalOpen(false);
+        } catch (error) {
+            alert("حدث خطأ أثناء حفظ التكليف");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleDeleteAssignment = async (id: string) => {
+        if (confirm('هل أنت متأكد من حذف هذا التكليف؟')) {
+            try {
+                setIsLoading(true);
+                await rosterService.delete(id);
+                setRosters(rosters.filter(r => r.id !== id));
+            } catch (error) {
+                alert("حدث خطأ أثناء الحذف");
+            } finally {
+                setIsLoading(false);
+            }
+        }
     };
 
     return (
@@ -199,7 +254,7 @@ export default function RosterPage() {
                                     <div className="space-y-1 mt-1">
                                         {dayRoster.map(roster => {
                                             const doc = doctors.find(d => d.fingerprintCode === roster.doctorId);
-                                            const shift = mockShiftTypes.find(s => s.code === roster.shiftCode);
+                                            const shift = shiftTypes.find(s => s.code === roster.shiftCode);
                                             if (!doc || !shift) return null;
 
                                             const isConsultant = doc.classificationRank === 1;
@@ -223,7 +278,13 @@ export default function RosterPage() {
                                             );
                                         })}
                                         {!isLocked && (
-                                            <button className="w-full mt-2 py-1.5 border border-dashed border-slate-200 rounded text-slate-400 hover:text-primary hover:border-primary/30 hover:bg-primary/5 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleOpenAssignmentModal(day);
+                                                }}
+                                                className="w-full mt-2 py-1.5 border border-dashed border-slate-200 rounded text-slate-400 hover:text-primary hover:border-primary/30 hover:bg-primary/5 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100"
+                                            >
                                                 <Plus className="w-3 h-3" />
                                             </button>
                                         )}
@@ -268,7 +329,7 @@ export default function RosterPage() {
                                             <th className="py-4 px-6">الوظيفة</th>
                                             <th className="py-4 px-6">القسم</th>
                                             <th className="py-4 px-6">المناوبة / التوقيت</th>
-                                            <th className="py-4 px-6 text-center">اذونات / ملاحظات</th>
+                                            <th className="py-4 px-6 text-center">إجراءات</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
@@ -276,7 +337,7 @@ export default function RosterPage() {
                                             .filter(r => r.date === format(selectedDay, 'yyyy-MM-dd'))
                                             .map((roster, idx) => {
                                                 const doc = doctors.find(d => d.fingerprintCode === roster.doctorId);
-                                                const shift = mockShiftTypes.find(s => s.code === roster.shiftCode);
+                                                const shift = shiftTypes.find(s => s.code === roster.shiftCode);
                                                 if (!doc || !shift) return null;
 
                                                 return (
@@ -302,9 +363,22 @@ export default function RosterPage() {
                                                             </div>
                                                         </td>
                                                         <td className="py-4 px-6 text-center">
-                                                            <button className="text-slate-300 hover:text-primary transition-colors p-2 rounded-lg hover:bg-slate-50">
-                                                                <FileText className="w-5 h-5" />
-                                                            </button>
+                                                            {!isLocked && (
+                                                                <div className="flex items-center justify-center gap-2">
+                                                                    <button
+                                                                        onClick={() => handleOpenAssignmentModal(selectedDay, roster)}
+                                                                        className="p-2 text-slate-400 hover:text-primary hover:bg-white rounded-lg transition-all border border-transparent hover:border-slate-100"
+                                                                    >
+                                                                        <Edit2 className="w-4 h-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleDeleteAssignment(roster.id!)}
+                                                                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-white rounded-lg transition-all border border-transparent hover:border-slate-100"
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </button>
+                                                                </div>
+                                                            )}
                                                         </td>
                                                     </tr>
                                                 );
@@ -320,6 +394,107 @@ export default function RosterPage() {
                                 </table>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add/Edit Assignment Modal */}
+            {isAssignmentModalOpen && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/20">
+                        <div className="p-8 bg-slate-50 border-b border-border flex items-center justify-between">
+                            <h3 className="text-xl font-black text-slate-900">
+                                {currentAssignment?.id ? 'تعديل تكليف' : 'إضافة تكليف جديد'}
+                            </h3>
+                            <button
+                                onClick={() => setIsAssignmentModalOpen(false)}
+                                className="p-2 hover:bg-white rounded-xl transition-colors text-slate-400 hover:text-slate-900"
+                            >
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveAssignment} className="p-8 space-y-6">
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black text-slate-700">التاريخ</label>
+                                    <input
+                                        type="date"
+                                        disabled
+                                        className="w-full px-4 py-3 rounded-xl border border-border bg-slate-100 font-bold opacity-60"
+                                        value={currentAssignment?.date || ''}
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black text-slate-700">الطبيب</label>
+                                    <select
+                                        required
+                                        className="w-full px-4 py-3 rounded-xl border border-border focus:ring-4 focus:ring-primary/10 transition-all font-bold bg-slate-50/50"
+                                        value={currentAssignment?.doctorId || ''}
+                                        onChange={e => {
+                                            const doc = doctors.find(d => d.fingerprintCode === e.target.value);
+                                            setCurrentAssignment({
+                                                ...currentAssignment,
+                                                doctorId: e.target.value,
+                                                department: doc?.specialty || ''
+                                            });
+                                        }}
+                                    >
+                                        <option value="">اختر الطبيب...</option>
+                                        {doctors.map(d => (
+                                            <option key={d.fingerprintCode} value={d.fingerprintCode}>
+                                                {d.fullNameArabic} ({d.fingerprintCode})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black text-slate-700">المناوبة</label>
+                                    <select
+                                        required
+                                        className="w-full px-4 py-3 rounded-xl border border-border focus:ring-4 focus:ring-primary/10 transition-all font-bold bg-slate-50/50"
+                                        value={currentAssignment?.shiftCode || ''}
+                                        onChange={e => setCurrentAssignment({ ...currentAssignment, shiftCode: e.target.value })}
+                                    >
+                                        <option value="">اختر المناوبة...</option>
+                                        {shiftTypes.map(s => (
+                                            <option key={s.code} value={s.code}>
+                                                {s.name} ({s.code})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black text-slate-700">القسم (اختياري)</label>
+                                    <input
+                                        className="w-full px-4 py-3 rounded-xl border border-border focus:ring-4 focus:ring-primary/10 transition-all font-bold bg-slate-50/50"
+                                        value={currentAssignment?.department || ''}
+                                        onChange={e => setCurrentAssignment({ ...currentAssignment, department: e.target.value })}
+                                        placeholder="سيتم استخدام تخصص الطبيب إذا ترك فارغاً"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="pt-4 flex gap-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsAssignmentModalOpen(false)}
+                                    className="flex-1 py-4 rounded-2xl border border-border font-black text-slate-600 hover:bg-slate-50 transition-colors"
+                                >
+                                    إلغاء
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex-1 py-4 rounded-2xl bg-primary text-white font-black hover:bg-primary/90 shadow-xl shadow-primary/20 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Save className="w-5 h-5" />
+                                    حفظ التكليف
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

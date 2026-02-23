@@ -84,10 +84,18 @@ export const rosterService = {
         await commitBatches(rosters, (batch, roster) => {
             // Replace any characters that might cause issues in doc IDs (like slashes)
             const sanitizedShiftCode = (roster.shiftCode || 'UNKNOWN').replace(/[\/\s]/g, '_');
-            const docId = `${roster.date}_${roster.doctorId}_${sanitizedShiftCode}`;
+            const docId = roster.id || `${roster.date}_${roster.doctorId}_${sanitizedShiftCode}`;
             const docRef = doc(db, ROSTERS_COLLECTION, docId);
-            batch.set(docRef, roster);
+            batch.set(docRef, { ...roster, id: docId });
         });
+    },
+    save: async (roster: RosterRecord): Promise<void> => {
+        const sanitizedShiftCode = (roster.shiftCode || 'UNKNOWN').replace(/[\/\s]/g, '_');
+        const docId = roster.id || `${roster.date}_${roster.doctorId}_${sanitizedShiftCode}`;
+        await setDoc(doc(db, ROSTERS_COLLECTION, docId), { ...roster, id: docId });
+    },
+    delete: async (id: string): Promise<void> => {
+        await deleteDoc(doc(db, ROSTERS_COLLECTION, id));
     }
 };
 
