@@ -17,8 +17,10 @@ import {
     Download,
     Lock,
     Unlock,
-    Loader2
+    Loader2,
+    Maximize2
 } from 'lucide-react';
+import Link from 'next/link';
 import { RosterGridView } from '@/components/RosterGridView';
 import { PageHeader } from '@/components/PageHeader';
 import { mockShiftTypes } from '@/lib/mockData';
@@ -203,6 +205,13 @@ export default function RosterPage() {
                             {isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
                             <span>{isLocked ? 'الجدول مقفل' : 'تعديل الجدول'}</span>
                         </button>
+                        <Link
+                            href="/dashboard/admin/roster/grid"
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all font-bold text-sm shadow-lg shadow-slate-950/20"
+                        >
+                            <Maximize2 className="w-4 h-4" />
+                            <span>فتح الجدول فائق السرعة</span>
+                        </Link>
                     </div>
                 }
             />
