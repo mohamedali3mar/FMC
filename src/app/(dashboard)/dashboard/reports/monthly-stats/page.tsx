@@ -225,7 +225,6 @@ export default function MonthlyStatsPage() {
                             <tbody className="divide-y divide-slate-100">
                                 {statsData.map((doc) => (
                                     <tr key={doc.fingerprintCode} className="hover:bg-slate-50/50 transition-colors group">
-                                        {/* ... abbreviated for safety ... */}
                                         <td className="py-5 px-8">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
@@ -294,7 +293,21 @@ export default function MonthlyStatsPage() {
                                             <div className="flex flex-col items-center gap-4 text-slate-300">
                                                 <BarChart3 className="w-12 h-12 opacity-20" />
                                                 <p className="font-black italic text-slate-400">لا توجد سجلات مناوبات لشهر {months[selectedMonth]} {selectedYear}</p>
-                                                <p className="text-xs font-bold text-slate-300">يرجى التأكد من اختيار الشهر الصحيح أو رفع جدول جديد.</p>
+                                                <div className="flex flex-col gap-1 text-[10px] font-bold text-slate-400 mt-2 bg-slate-50 p-4 rounded-2xl border border-slate-100 min-w-[200px]">
+                                                    <div className="flex justify-between gap-4">
+                                                        <span>الأطباء المسجلون:</span>
+                                                        <span className="text-primary">{doctors.length}</span>
+                                                    </div>
+                                                    <div className="flex justify-between gap-4">
+                                                        <span>سجلات المناوبات المكتشفة:</span>
+                                                        <span className="text-primary">{rosters.length}</span>
+                                                    </div>
+                                                    <div className="flex justify-between gap-4 border-t border-slate-100 pt-1 mt-1">
+                                                        <span>نطاق البحث (شهر):</span>
+                                                        <span dir="ltr" className="text-[8px]">{selectedYear}-{String(selectedMonth + 1).padStart(2, '0')}</span>
+                                                    </div>
+                                                </div>
+                                                <p className="text-xs font-bold text-slate-300 max-w-xs">إذا قمت برفع الجدول بالفعل، يرجى التأكد من اختيار الشهر الصحيح أعلاه أو تجربة إعادة الرفع.</p>
                                             </div>
                                         </td>
                                     </tr>

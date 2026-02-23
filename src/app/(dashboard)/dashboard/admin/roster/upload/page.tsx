@@ -44,6 +44,7 @@ export default function UploadRosterPage() {
             try {
                 const dataBuffer = evt.target?.result as ArrayBuffer;
                 const wb = XLSX.read(dataBuffer, { type: 'array', cellDates: true });
+                console.log(`[Upload] Loaded workbook with ${wb.SheetNames.length} sheets: ${wb.SheetNames.join(', ')}`);
                 const wsname = wb.SheetNames[0];
                 const data = XLSX.utils.sheet_to_json<any>(wb.Sheets[wsname], { raw: false, defval: "" });
 
@@ -54,8 +55,17 @@ export default function UploadRosterPage() {
                 const targetMonthPrefix = `${yearStr}-${monthStr}`;
 
                 data.forEach((row, index) => {
-                    // Flexible mapping for roster codes
-                    const fpCode = (row['كود البصمة'] || row['الكود'] || row['كود'] || row['Code'])?.toString().trim();
+                    // Flexible mapping for roster codes (Fingerprint, ID, Code etc)
+                    const fpCode = (
+                        row['كود البصمة'] ||
+                        row['رقم البصمة'] ||
+                        row['كود الطبيب'] ||
+                        row['الكود'] ||
+                        row['كود'] ||
+                        row['Code'] ||
+                        row['ID']
+                    )?.toString().trim();
+
                     if (!fpCode || fpCode === '') return;
 
                     const deptRaw = (row['القسم'] || row['التخصص'] || row['Department'])?.toString().trim() || '';
@@ -73,18 +83,18 @@ export default function UploadRosterPage() {
                     const canonicalDept = deptObj.canonical || deptRaw;
 
                     Object.keys(row).forEach(key => {
-                        // Attempt to extract the day from the key
-                        // It can be direct numbers "1".."31" or dates "1-Feb-26" or "01"
+                        // Normalize key to handle Eastern Arabic numerals if any
+                        const normalizedKey = key.toString().trim().replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
+
                         let dayNum = -1;
 
-                        const trimmedKey = key.toString().trim();
                         // 1. If it's just a number
-                        if (/^(0?[1-9]|[12][0-9]|3[01])$/.test(trimmedKey)) {
-                            dayNum = parseInt(trimmedKey);
+                        if (/^(0?[1-9]|[12][0-9]|3[01])$/.test(normalizedKey)) {
+                            dayNum = parseInt(normalizedKey);
                         }
-                        // 2. If it's a date parsed as a string like "2/1/2026" or "1-Feb-26"
+                        // 2. If it's a date string like "1-Feb-26"
                         else {
-                            const match = trimmedKey.match(/^(0?[1-9]|[12][0-9]|3[01])([-/\s\.])/);
+                            const match = normalizedKey.match(/^(0?[1-9]|[12][0-9]|3[01])([-/\s\.])/);
                             if (match) {
                                 dayNum = parseInt(match[1]);
                             }
@@ -93,10 +103,10 @@ export default function UploadRosterPage() {
                         // Check if dayNum is valid and matches our extraction
                         if (dayNum >= 1 && dayNum <= 31) {
                             const rawValue = row[key]?.toString().trim() || '';
-                            const shiftCode = rawValue.toUpperCase(); // Ensure shifts are mapped properly
+                            const shiftCode = rawValue.toUpperCase();
 
                             // Ignore empty, whitespace, asterisks, dashes, zeroes etc if mapped
-                            if (shiftCode && shiftCode !== '-' && shiftCode !== '' && shiftCode !== '0' && shiftCode !== 'ملاحظات') {
+                            if (shiftCode && !['-', '', '0', 'ملاحظات', '*'].includes(shiftCode)) {
                                 const dateStr = `${yearStr}-${monthStr}-${dayNum.toString().padStart(2, '0')}`;
                                 monthlyShifts.push({
                                     id: Math.random().toString(36).substr(2, 9),
@@ -105,7 +115,7 @@ export default function UploadRosterPage() {
                                     shiftCode: shiftCode,
                                     department: canonicalDept,
                                     source: 'ExcelUpload',
-                                    lastModifiedBy: 'admin', // Could be fetched from Auth
+                                    lastModifiedBy: 'admin',
                                     lastModifiedAt: new Date().toISOString()
                                 });
                                 parsedCount++;
