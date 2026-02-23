@@ -61,12 +61,9 @@ export default function MonthlyStatsPage() {
                     console.log(`[Stats] First record date sample: ${rosterData[0].date}`);
                 }
 
-                // Auto-seed shifts if missing
+                // Check for missing shifts but don't auto-seed anymore to prevent unexpected writes
                 if (shiftsData.length === 0) {
-                    console.log("[Stats] No shift types found, seeding with mock data...");
-                    const { mockShiftTypes } = await import('@/lib/mockData');
-                    await shiftService.saveBatch(mockShiftTypes);
-                    shiftsData = mockShiftTypes;
+                    console.warn("[Stats] No shift types found in database.");
                 }
 
                 setDoctors(docsData);

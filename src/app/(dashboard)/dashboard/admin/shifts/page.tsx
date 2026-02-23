@@ -85,6 +85,22 @@ export default function ShiftsPage() {
         }
     };
 
+    const handleResetToDefaults = async () => {
+        if (confirm('هل أنت متأكد من إعادة ضبط المناوبات إلى الإعدادات الافتراضية؟ سيتم تحديث كافة المسميات والأوقات.')) {
+            setIsLoading(true);
+            try {
+                await shiftService.saveBatch(mockShiftTypes);
+                setShifts(mockShiftTypes);
+                alert("تمت إعادة الضبط بنجاح");
+            } catch (error) {
+                console.error("Error resetting shifts:", error);
+                alert("حدث خطأ أثناء إعادة الضبط");
+            } finally {
+                setIsLoading(false);
+            }
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-20">
@@ -99,13 +115,22 @@ export default function ShiftsPage() {
                 title="إعدادات المناوبات"
                 subtitle="إدارة أنواع المناوبات، الأوقات، والترتيب"
                 actions={
-                    <button
-                        onClick={() => handleOpenModal()}
-                        className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-2xl hover:bg-primary/90 transition-all font-black shadow-lg shadow-primary/20"
-                    >
-                        <Plus className="w-5 h-5" />
-                        <span>إضافة مناوبة جديدة</span>
-                    </button>
+                    <div className="flex gap-4">
+                        <button
+                            onClick={handleResetToDefaults}
+                            className="flex items-center gap-2 bg-slate-100 text-slate-600 px-6 py-3 rounded-2xl hover:bg-slate-200 transition-all font-black"
+                        >
+                            <Clock className="w-5 h-5" />
+                            <span>إعادة ضبط الافتراضيات</span>
+                        </button>
+                        <button
+                            onClick={() => handleOpenModal()}
+                            className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-2xl hover:bg-primary/90 transition-all font-black shadow-lg shadow-primary/20"
+                        >
+                            <Plus className="w-5 h-5" />
+                            <span>إضافة مناوبة جديدة</span>
+                        </button>
+                    </div>
                 }
             />
 

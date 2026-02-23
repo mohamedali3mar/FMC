@@ -20,7 +20,7 @@ export const mockUsers: User[] = [
 export const mockShiftTypes: ShiftType[] = [
     {
         code: '24H',
-        name: 'شفت 24 ساعة',
+        name: 'شفت 24 ساعة من ٨ص ل تاني يوم ٨ ص',
         startTime: '08:00',
         endTime: '08:00',
         durationHours: 24,
@@ -30,7 +30,7 @@ export const mockShiftTypes: ShiftType[] = [
     },
     {
         code: '18A',
-        name: 'صباحي 18 ساعة تعاقد',
+        name: 'شفت صباحى 18 ساعة تعاقد ( ص8ص لتاني يوم 2ص )',
         startTime: '08:00',
         endTime: '02:00',
         durationHours: 18,
@@ -40,7 +40,7 @@ export const mockShiftTypes: ShiftType[] = [
     },
     {
         code: '18P',
-        name: 'مسائي 18 ساعة تعاقد',
+        name: 'شفت مسائي 18 ساعة تعاقد ( ص8م لتاني يوم 2م )',
         startTime: '20:00',
         endTime: '14:00',
         durationHours: 18,
@@ -50,7 +50,7 @@ export const mockShiftTypes: ShiftType[] = [
     },
     {
         code: '12A',
-        name: 'صباحي 12 ساعة',
+        name: 'شفت صباحى 12 ساعة ( ص8ص ل 8م )',
         startTime: '08:00',
         endTime: '20:00',
         durationHours: 12,
@@ -60,7 +60,7 @@ export const mockShiftTypes: ShiftType[] = [
     },
     {
         code: '12P',
-        name: 'مسائي 12 ساعة',
+        name: 'شفت مسائى 12 ساعة ( ص8م ل 8ص )',
         startTime: '20:00',
         endTime: '08:00',
         durationHours: 12,
@@ -70,7 +70,7 @@ export const mockShiftTypes: ShiftType[] = [
     },
     {
         code: '7A',
-        name: 'عمل يومي 7 ساعات صباحاً',
+        name: 'عمل يومى 7ساعات صباحا (8ص ل 3م)',
         startTime: '08:00',
         endTime: '15:00',
         durationHours: 7,
@@ -80,7 +80,7 @@ export const mockShiftTypes: ShiftType[] = [
     },
     {
         code: '7P',
-        name: 'عمل يومي 7 ساعات مساءً',
+        name: 'عمل يومى 7ساعات مساءا (3م ل 10م)',
         startTime: '15:00',
         endTime: '22:00',
         durationHours: 7,
