@@ -29,13 +29,6 @@ export default function ReportsPage() {
             icon: BarChart3,
             color: 'bg-teal-500',
             href: '/dashboard/reports/monthly-stats'
-        },
-        {
-            title: 'تقرير حضور الكادر الطبي',
-            description: 'سجل الحصص المناوبة المكتملة بناءً على جدول البصمة.',
-            icon: Clock,
-            color: 'bg-amber-500',
-            href: '/dashboard/reports/attendance'
         }
     ];
 
