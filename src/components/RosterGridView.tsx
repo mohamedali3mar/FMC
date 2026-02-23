@@ -262,9 +262,9 @@ export function RosterGridView({
     }
 
     return (
-        <div className="flex flex-col h-full bg-slate-50 relative">
-            {/* Optimized Toolbar */}
-            <div className="shrink-0 p-4 bg-white/80 backdrop-blur-xl border-b border-slate-200 flex flex-col md:flex-row items-center gap-4 z-50 sticky top-0">
+        <div className="bg-white flex flex-col h-full overflow-hidden">
+            {/* Professional Grid Toolbar */}
+            <div className="p-4 border-b border-border flex flex-col lg:flex-row items-center gap-4 bg-white z-50">
                 <div className="relative flex-1 w-full">
                     <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                     <input
@@ -301,7 +301,7 @@ export function RosterGridView({
                 <table className="border-separate border-spacing-0 w-full text-right table-fixed min-w-max">
                     <thead className="sticky top-0 z-40">
                         <tr className="shadow-sm">
-                            <th className="sticky left-0 z-50 bg-slate-100/95 backdrop-blur-md border-b-2 border-l border-slate-200 p-4 w-[240px] text-xs font-black text-slate-600">
+                            <th className="sticky left-0 z-50 bg-slate-100/95 backdrop-blur-md border-b-2 border-l border-slate-200 p-3 w-[180px] text-xs font-black text-slate-600">
                                 <div className="flex items-center justify-between">
                                     <span>الكادر الطبي</span>
                                     <Users className="w-4 h-4 opacity-30" />
@@ -311,7 +311,7 @@ export function RosterGridView({
                                 <th
                                     key={day.date}
                                     className={cn(
-                                        "bg-slate-50/95 backdrop-blur-md border-b-2 border-l border-slate-200 p-2 w-[55px] text-center transition-colors",
+                                        "bg-slate-50/95 backdrop-blur-md border-b-2 border-l border-slate-200 p-1 w-[42px] text-center transition-colors",
                                         day.isWeekend && "bg-rose-50/80"
                                     )}
                                 >
@@ -335,7 +335,7 @@ export function RosterGridView({
                                 <tr className="sticky z-30" style={{ top: '56px' }}>
                                     <td
                                         colSpan={days.length + 1}
-                                        className="py-2.5 px-4 text-xs font-black text-slate-700 bg-slate-200/90 backdrop-blur-md sticky left-0 shadow-sm"
+                                        className="py-2.5 px-4 text-xs font-black text-slate-700 border-b border-slate-200 bg-slate-50 sticky left-0 right-0 shadow-sm"
                                     >
                                         <div className="flex items-center gap-2">
                                             <div className="w-1.5 h-4 bg-primary rounded-full shadow-sm shadow-primary/30" />
@@ -349,7 +349,7 @@ export function RosterGridView({
 
                                 {deptDoctors.map(doctor => (
                                     <tr key={doctor.fingerprintCode} className="hover:bg-primary/5 transition-colors group">
-                                        <td className="sticky left-0 z-20 bg-white group-hover:bg-slate-50/80 border-b border-l border-slate-200 p-3 shadow-[2px_0_15px_-4px_rgba(0,0,0,0.08)] transition-all">
+                                        <td className="sticky left-0 z-20 bg-white group-hover:bg-slate-50/80 border-b border-l border-slate-200 p-2 shadow-[2px_0_15px_-4px_rgba(0,0,0,0.08)] transition-all">
                                             <div className="flex flex-col gap-0.5">
                                                 <span className="text-sm font-black text-slate-900 line-clamp-1">{doctor.fullNameArabic}</span>
                                                 <div className="flex items-center gap-1.5">

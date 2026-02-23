@@ -21,7 +21,6 @@ import {
     Maximize2
 } from 'lucide-react';
 import Link from 'next/link';
-import { RosterGridView } from '@/components/RosterGridView';
 import { PageHeader } from '@/components/PageHeader';
 import { mockShiftTypes } from '@/lib/mockData';
 import { RosterRecord, Doctor, ShiftType } from '@/lib/types';
@@ -35,7 +34,6 @@ import { forceDownloadExcel } from '@/lib/excel-utils';
 export default function RosterPage() {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isLocked, setIsLocked] = useState(false);
-    const [viewType, setViewType] = useState<'calendar' | 'grid'>('calendar');
     const [searchTerm, setSearchTerm] = useState('');
     const [rosters, setRosters] = useState<RosterRecord[]>([]);
     const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -136,17 +134,6 @@ export default function RosterPage() {
         setIsAssignmentModalOpen(true);
     };
 
-    const handleSaveAssignmentFromGrid = async (assignment: Partial<RosterRecord>) => {
-        try {
-            await rosterService.save(assignment as RosterRecord);
-            const monthFilter = format(currentDate, 'yyyy-MM');
-            const updatedRosters = await rosterService.getByMonth(monthFilter);
-            setRosters(updatedRosters);
-        } catch (error) {
-            console.error("Failed to save roster from grid", error);
-            throw error;
-        }
-    };
 
     const handleSaveAssignment = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -210,7 +197,7 @@ export default function RosterPage() {
                             className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all font-bold text-sm shadow-lg shadow-slate-950/20"
                         >
                             <Maximize2 className="w-4 h-4" />
-                            <span>فتح الجدول فائق السرعة</span>
+                            <span>فتح الجدول</span>
                         </Link>
                     </div>
                 }
@@ -237,29 +224,6 @@ export default function RosterPage() {
                             </button>
                         </div>
                     </div>
-
-                    <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 no-print">
-                        <button
-                            onClick={() => setViewType('calendar')}
-                            className={cn(
-                                "flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-black transition-all",
-                                viewType === 'calendar' ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"
-                            )}
-                        >
-                            <CalendarIcon className="w-4 h-4" />
-                            <span>تقويم</span>
-                        </button>
-                        <button
-                            onClick={() => setViewType('grid')}
-                            className={cn(
-                                "flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-black transition-all",
-                                viewType === 'grid' ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"
-                            )}
-                        >
-                            <Table className="w-4 h-4" />
-                            <span>جدول مجمع</span>
-                        </button>
-                    </div>
                 </div>
 
                 <div className="p-6 relative min-h-[400px]">
@@ -269,84 +233,72 @@ export default function RosterPage() {
                         </div>
                     )}
 
-                    {viewType === 'grid' ? (
-                        <RosterGridView
-                            currentDate={currentDate}
-                            doctors={doctors}
-                            rosters={rosters}
-                            shiftTypes={shiftTypes}
-                            onSaveAssignment={handleSaveAssignmentFromGrid}
-                            onDeleteAssignment={handleDeleteAssignment}
-                            isLoading={false}
-                        />
-                    ) : (
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-7 gap-px border-b border-border mb-4">
-                                {['أحد', 'ثنين', 'ثاء', 'ربعاء', 'خميس', 'جمعة', 'سبت'].map(day => (
-                                    <div key={day} className="py-2 text-center text-[10px] font-black text-slate-400 uppercase">
-                                        {day}
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="grid grid-cols-7 gap-2">
-                                {paddingDays.map(i => (
-                                    <div key={`padding-${i}`} className="min-h-[120px] bg-slate-50/30 rounded-2xl" />
-                                ))}
-                                {days.map(day => {
-                                    const dateStr = format(day, 'yyyy-MM-dd');
-                                    const dayRosters = rosters.filter(r => r.date === dateStr);
-                                    const isToday = isSameDay(day, new Date());
-
-                                    return (
-                                        <div
-                                            key={day.toString()}
-                                            onClick={() => setSelectedDay(day)}
-                                            className={cn(
-                                                "min-h-[120px] p-3 rounded-2xl border transition-all cursor-pointer group relative",
-                                                isToday ? "bg-primary/5 border-primary/20" : "bg-white border-slate-100 hover:border-primary/20 hover:shadow-sm"
-                                            )}
-                                        >
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className={cn(
-                                                    "w-7 h-7 flex items-center justify-center rounded-full text-xs font-black transition-colors",
-                                                    isToday ? "bg-primary text-white" : "text-slate-400 group-hover:text-primary"
-                                                )}>
-                                                    {format(day, 'd')}
-                                                </span>
-                                                {!isLocked && (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleOpenAssignmentModal(day);
-                                                        }}
-                                                        className="w-6 h-6 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center hover:bg-teal-600 hover:text-white transition-all opacity-0 group-hover:opacity-100"
-                                                    >
-                                                        <Plus className="w-3 h-3" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                            <div className="space-y-1">
-                                                {dayRosters.slice(0, 3).map(r => {
-                                                    const doc = doctors.find(d => d.fingerprintCode === r.doctorId);
-                                                    return (
-                                                        <div key={r.id} className="text-[10px] p-1 bg-slate-50 rounded border border-slate-100 font-bold truncate">
-                                                            <span className="text-primary ml-1">{r.shiftCode}</span>
-                                                            {doc?.fullNameArabic.split(' ')[0]}
-                                                        </div>
-                                                    );
-                                                })}
-                                                {dayRosters.length > 3 && (
-                                                    <div className="text-[9px] font-black text-slate-400 text-center">
-                                                        +{dayRosters.length - 3} المزيد
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-7 gap-px border-b border-border mb-4">
+                            {['أحد', 'ثنين', 'ثاء', 'ربعاء', 'خميس', 'جمعة', 'سبت'].map(day => (
+                                <div key={day} className="py-2 text-center text-[10px] font-black text-slate-400 uppercase">
+                                    {day}
+                                </div>
+                            ))}
                         </div>
-                    )}
+                        <div className="grid grid-cols-7 gap-2">
+                            {paddingDays.map(i => (
+                                <div key={`padding-${i}`} className="min-h-[120px] bg-slate-50/30 rounded-2xl" />
+                            ))}
+                            {days.map(day => {
+                                const dateStr = format(day, 'yyyy-MM-dd');
+                                const dayRosters = rosters.filter(r => r.date === dateStr);
+                                const isToday = isSameDay(day, new Date());
+
+                                return (
+                                    <div
+                                        key={day.toString()}
+                                        onClick={() => setSelectedDay(day)}
+                                        className={cn(
+                                            "min-h-[120px] p-3 rounded-2xl border transition-all cursor-pointer group relative",
+                                            isToday ? "bg-primary/5 border-primary/20" : "bg-white border-slate-100 hover:border-primary/20 hover:shadow-sm"
+                                        )}
+                                    >
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className={cn(
+                                                "w-7 h-7 flex items-center justify-center rounded-full text-xs font-black transition-colors",
+                                                isToday ? "bg-primary text-white" : "text-slate-400 group-hover:text-primary"
+                                            )}>
+                                                {format(day, 'd')}
+                                            </span>
+                                            {!isLocked && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleOpenAssignmentModal(day);
+                                                    }}
+                                                    className="w-6 h-6 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center hover:bg-teal-600 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                                                >
+                                                    <Plus className="w-3 h-3" />
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="space-y-1">
+                                            {dayRosters.slice(0, 3).map(r => {
+                                                const doc = doctors.find(d => d.fingerprintCode === r.doctorId);
+                                                return (
+                                                    <div key={r.id} className="text-[10px] p-1 bg-slate-50 rounded border border-slate-100 font-bold truncate">
+                                                        <span className="text-primary ml-1">{r.shiftCode}</span>
+                                                        {doc?.fullNameArabic.split(' ')[0]}
+                                                    </div>
+                                                );
+                                            })}
+                                            {dayRosters.length > 3 && (
+                                                <div className="text-[9px] font-black text-slate-400 text-center">
+                                                    +{dayRosters.length - 3} المزيد
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
                 </div>
             </div>
 
