@@ -211,18 +211,20 @@ export function CallSheetDisplay({ isPublic = false }: CallSheetDisplayProps) {
                         <span>طباعة التقرير</span>
                     </button>
 
-                    <a
-                        href="/dashboard"
-                        className="p-2 bg-white border border-border rounded-xl flex items-center justify-center transition-all shadow-sm hover:border-primary/50 group"
-                        title="الرئيسية"
-                    >
-                        <img
-                            src="https://upload.wikimedia.org/wikipedia/ar/f/ff/%D8%A7%D9%84%D9%87%D9%8A%D8%A6%D8%A9_%D8%A7%D9%84%D8%B9%D8%A7%D9%85%D8%A9_%D9%84%D9%84%D8%B1%D8%B9%D8%A7%D9%8A%D8%A9_%D8%A7%D9%84%D8%B5%D8%AD%D9%8A%D8%A9_%28%D9%85%D8%B5%D8%B1%29.png"
-                            alt="شعار الهيئة"
-                            className="w-8 h-8 object-contain"
-                            crossOrigin="anonymous"
-                        />
-                    </a>
+                    {!isPublic && (
+                        <a
+                            href="/dashboard"
+                            className="p-2 bg-white border border-border rounded-xl flex items-center justify-center transition-all shadow-sm hover:border-primary/50 group"
+                            title="الرئيسية"
+                        >
+                            <img
+                                src="https://upload.wikimedia.org/wikipedia/ar/f/ff/%D8%A7%D9%84%D9%87%D9%8A%D8%A6%D8%A9_%D8%A7%D9%84%D8%B9%D8%A7%D9%85%D8%A9_%D9%84%D9%84%D8%B1%D8%B9%D8%A7%D9%8A%D8%A9_%D8%A7%D9%84%D8%B5%D8%AD%D9%8A%D8%A9_%28%D9%85%D8%B5%D8%B1%29.png"
+                                alt="شعار الهيئة"
+                                className="w-8 h-8 object-contain"
+                                crossOrigin="anonymous"
+                            />
+                        </a>
+                    )}
                 </div>
             </div>
 
