@@ -31,6 +31,7 @@ import { AlertCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { forceDownloadExcel } from '@/lib/excel-utils';
 import { DEPARTMENTS_MAPPING, standardizeDepartment } from '@/lib/department-mapper';
+import { normalizeEgyptianPhone } from '@/lib/phone-utils';
 
 import { Suspense } from 'react';
 
@@ -185,7 +186,7 @@ function DoctorsContent() {
             fingerprintCode: currentDoctor.fingerprintCode.trim(),
             fullNameArabic: (currentDoctor.fullNameArabic || '').trim(),
             nationalId: (currentDoctor.nationalId || '').trim(),
-            phoneNumber: (currentDoctor.phoneNumber || '').trim(),
+            phoneNumber: normalizeEgyptianPhone((currentDoctor.phoneNumber || '')),
             classification: currentDoctor.classification || 'أخصائي',
             classificationRank: currentDoctor.classificationRank || 2,
             specialty: (currentDoctor.specialty || '').trim(),
@@ -433,7 +434,7 @@ function DoctorsContent() {
                         fingerprintCode: fpCode,
                         fullNameArabic: name,
                         nationalId: nationalId || '',
-                        phoneNumber: phone || '',
+                        phoneNumber: normalizeEgyptianPhone(phone || ''),
                         classification: classification,
                         classificationRank: rank,
                         specialty: specialty || '',
@@ -485,6 +486,40 @@ function DoctorsContent() {
         reader.readAsArrayBuffer(file);
     };
 
+    const handleMaintenancePhones = async () => {
+        const toFix = doctors.filter(d => d.phoneNumber && d.phoneNumber.startsWith('1') && d.phoneNumber.length === 10);
+        if (toFix.length === 0) {
+            alert('لم يتم العثور على أرقام تحتاج إلى إصلاح (تبدأ بـ 1 ومكونة من 10 أرقام)');
+            return;
+        }
+
+        if (confirm(`تم العثور على ${toFix.length} رقم يحتاج لإضافة "0" في البداية. هل تريد الإصلاح الآن؟`)) {
+            setIsLoading(true);
+            try {
+                const fixedDoctors = toFix.map(d => ({
+                    ...d,
+                    phoneNumber: '0' + d.phoneNumber
+                }));
+
+                await doctorService.saveBatch(fixedDoctors);
+
+                // Update local state
+                const updatedDoctors = doctors.map(d => {
+                    const fixed = fixedDoctors.find(f => f.fingerprintCode === d.fingerprintCode);
+                    return fixed || d;
+                });
+                setDoctors(updatedDoctors);
+
+                alert(`تم بنجاح إصلاح ${fixedDoctors.length} رقم هاتف.`);
+            } catch (error) {
+                console.error("Maintenance failed:", error);
+                alert("حدث خطأ أثناء عملية الإصلاح.");
+            } finally {
+                setIsLoading(false);
+            }
+        }
+    };
+
     return (
         <div className="space-y-6">
             <PageHeader
@@ -527,6 +562,16 @@ function DoctorsContent() {
                         >
                             <UploadCloud className="w-5 h-5 shrink-0" />
                             <span className="hidden sm:inline">رفع مجمع (Excel)</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handleMaintenancePhones}
+                            className="flex items-center gap-2 bg-amber-500 text-white px-4 py-3 rounded-2xl hover:bg-amber-600 transition-all font-bold shadow-lg shadow-amber-500/20"
+                            title="إصلاح أرقام الهواتف الناقصة لصفر"
+                        >
+                            <Phone className="w-5 h-5 shrink-0" />
+                            <span className="hidden lg:inline">إصلاح الأرقام</span>
                         </button>
 
                         <button
