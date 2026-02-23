@@ -10,32 +10,60 @@ import {
     Search,
     Stethoscope,
     Clock,
-    User
+    User,
+    Loader2
 } from 'lucide-react';
-import { mockDoctors, mockRoster, mockShiftTypes } from '@/lib/mockData';
 import { PageHeader } from '@/components/PageHeader';
 import { cn } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 import { forceDownloadExcel } from '@/lib/excel-utils';
+import { doctorService, rosterService, shiftService } from '@/lib/firebase-service';
+import { Doctor, RosterRecord, ShiftType } from '@/lib/types';
 
 export default function MonthlyStatsPage() {
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [searchTerm, setSearchTerm] = useState('');
 
+    const [isLoading, setIsLoading] = useState(true);
+    const [doctors, setDoctors] = useState<Doctor[]>([]);
+    const [rosters, setRosters] = useState<RosterRecord[]>([]);
+    const [shifts, setShifts] = useState<ShiftType[]>([]);
+
     const months = [
         'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
         'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
     ];
 
-    const statsData = useMemo(() => {
-        const monthStr = String(selectedMonth + 1).padStart(2, '0');
-        const yearMonthPrefix = `${selectedYear}-${monthStr}`;
+    React.useEffect(() => {
+        const loadData = async () => {
+            setIsLoading(true);
+            try {
+                const monthStr = String(selectedMonth + 1).padStart(2, '0');
+                const monthFilter = `${selectedYear}-${monthStr}`;
 
-        return mockDoctors.map(doctor => {
-            const doctorShifts = mockRoster.filter(r =>
-                r.doctorId === doctor.fingerprintCode &&
-                r.date.startsWith(yearMonthPrefix)
+                const [docsData, rosterData, shiftsData] = await Promise.all([
+                    doctorService.getAll(),
+                    rosterService.getByMonth(monthFilter),
+                    shiftService.getAll()
+                ]);
+
+                setDoctors(docsData);
+                setRosters(rosterData);
+                setShifts(shiftsData);
+            } catch (error) {
+                console.error("Error loading stats data:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        loadData();
+    }, [selectedMonth, selectedYear]);
+
+    const statsData = useMemo(() => {
+        return doctors.map(doctor => {
+            const doctorShifts = rosters.filter(r =>
+                r.doctorId === doctor.fingerprintCode
             );
 
             const shiftCounts: Record<string, number> = {};
@@ -43,7 +71,7 @@ export default function MonthlyStatsPage() {
             let totalShifts = 0;
 
             doctorShifts.forEach(record => {
-                const shiftType = mockShiftTypes.find(s => s.code === record.shiftCode);
+                const shiftType = shifts.find(s => s.code === record.shiftCode);
                 if (shiftType && shiftType.countsAsWorkingShift) {
                     shiftCounts[record.shiftCode] = (shiftCounts[record.shiftCode] || 0) + 1;
                     totalHours += shiftType.durationHours;
@@ -59,16 +87,16 @@ export default function MonthlyStatsPage() {
             };
         }).filter(d =>
             d.fullNameArabic.includes(searchTerm) ||
-            d.specialty.includes(searchTerm) ||
+            (d.department || d.specialty || '').includes(searchTerm) ||
             d.fingerprintCode.includes(searchTerm)
         ).sort((a, b) => b.totalShifts - a.totalShifts);
-    }, [selectedMonth, selectedYear, searchTerm]);
+    }, [doctors, rosters, shifts, searchTerm]);
 
     const handleExport = () => {
         const data = statsData.map(d => ({
             'اسم الطبيب': d.fullNameArabic,
             'كود البصمة': d.fingerprintCode,
-            'التخصص': d.specialty,
+            'التخصص / القسم': d.department || d.specialty,
             'التصنيف': d.classification,
             'إجمالي المناوبات': d.totalShifts,
             'إجمالي الساعات': d.totalHours,
@@ -89,7 +117,8 @@ export default function MonthlyStatsPage() {
                 actions={
                     <button
                         onClick={handleExport}
-                        className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-2xl hover:bg-emerald-700 transition-all font-black shadow-lg shadow-emerald-600/20"
+                        disabled={isLoading}
+                        className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-2xl hover:bg-emerald-700 transition-all font-black shadow-lg shadow-emerald-600/20 disabled:opacity-50"
                     >
                         <Download className="w-5 h-5" />
                         <span>تصدير Excel</span>
@@ -135,73 +164,79 @@ export default function MonthlyStatsPage() {
             </div>
 
             <div className="bg-white rounded-[2.5rem] border border-border shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-right border-collapse">
-                        <thead>
-                            <tr className="bg-slate-50 border-b border-border">
-                                <th className="py-5 px-8 font-black text-slate-500 text-xs uppercase tracking-widest">الطبيب</th>
-                                <th className="py-5 px-8 font-black text-slate-500 text-xs uppercase tracking-widest">التخصص / التصنيف</th>
-                                <th className="py-5 px-8 font-black text-slate-500 text-xs uppercase tracking-widest text-center">إجمالي المناوبات</th>
-                                <th className="py-5 px-8 font-black text-slate-500 text-xs uppercase tracking-widest text-center">إجمالي الساعات</th>
-                                <th className="py-5 px-8 font-black text-slate-500 text-xs uppercase tracking-widest text-center">تفاصيل الأكواد</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {statsData.map((doc) => (
-                                <tr key={doc.fingerprintCode} className="hover:bg-slate-50/50 transition-colors group">
-                                    <td className="py-5 px-8">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                                                <User className="w-6 h-6" />
-                                            </div>
-                                            <div>
-                                                <p className="font-black text-slate-900">{doc.fullNameArabic}</p>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">كود: {doc.fingerprintCode}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="py-5 px-8">
-                                        <div className="flex flex-col gap-1">
-                                            <span className="font-bold text-slate-700 flex items-center gap-1">
-                                                <Stethoscope className="w-3.5 h-3.5 text-slate-400" />
-                                                {doc.specialty}
-                                            </span>
-                                            <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded w-fit">
-                                                {doc.classification}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className="py-5 px-8 text-center">
-                                        <div className="inline-flex flex-col items-center">
-                                            <span className="text-2xl font-black text-slate-900">{doc.totalShifts}</span>
-                                            <span className="text-[10px] font-bold text-emerald-600 uppercase">مناوبة</span>
-                                        </div>
-                                    </td>
-                                    <td className="py-5 px-8 text-center">
-                                        <div className="inline-flex flex-col items-center">
-                                            <span className="text-2xl font-black text-slate-900">{doc.totalHours}</span>
-                                            <span className="text-[10px] font-bold text-blue-600 uppercase">ساعة</span>
-                                        </div>
-                                    </td>
-                                    <td className="py-5 px-8">
-                                        <div className="flex flex-wrap gap-2 justify-center">
-                                            {Object.entries(doc.shiftCounts).map(([code, count]) => (
-                                                <div key={code} className="flex items-center gap-1.5 bg-white border border-slate-100 px-3 py-1.5 rounded-xl shadow-sm">
-                                                    <span className="text-[10px] font-black text-primary">{code}</span>
-                                                    <span className="w-px h-3 bg-slate-200" />
-                                                    <span className="text-[10px] font-black text-slate-600">{count}</span>
-                                                </div>
-                                            ))}
-                                            {doc.totalShifts === 0 && (
-                                                <span className="text-slate-300 italic text-xs">لا توجد مناوبات</span>
-                                            )}
-                                        </div>
-                                    </td>
+                {isLoading ? (
+                    <div className="py-20 flex justify-center">
+                        <Loader2 className="w-10 h-10 text-primary animate-spin" />
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-right border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50 border-b border-border">
+                                    <th className="py-5 px-8 font-black text-slate-500 text-xs uppercase tracking-widest">الطبيب</th>
+                                    <th className="py-5 px-8 font-black text-slate-500 text-xs uppercase tracking-widest">التخصص / التصنيف</th>
+                                    <th className="py-5 px-8 font-black text-slate-500 text-xs uppercase tracking-widest text-center">إجمالي المناوبات</th>
+                                    <th className="py-5 px-8 font-black text-slate-500 text-xs uppercase tracking-widest text-center">إجمالي الساعات</th>
+                                    <th className="py-5 px-8 font-black text-slate-500 text-xs uppercase tracking-widest text-center">تفاصيل الأكواد</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {statsData.map((doc) => (
+                                    <tr key={doc.fingerprintCode} className="hover:bg-slate-50/50 transition-colors group">
+                                        <td className="py-5 px-8">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                                                    <User className="w-6 h-6" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-black text-slate-900">{doc.fullNameArabic}</p>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">كود: {doc.fingerprintCode}</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="py-5 px-8">
+                                            <div className="flex flex-col gap-1">
+                                                <span className="font-bold text-slate-700 flex items-center gap-1">
+                                                    <Stethoscope className="w-3.5 h-3.5 text-slate-400" />
+                                                    {doc.specialty}
+                                                </span>
+                                                <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded w-fit">
+                                                    {doc.classification}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="py-5 px-8 text-center">
+                                            <div className="inline-flex flex-col items-center">
+                                                <span className="text-2xl font-black text-slate-900">{doc.totalShifts}</span>
+                                                <span className="text-[10px] font-bold text-emerald-600 uppercase">مناوبة</span>
+                                            </div>
+                                        </td>
+                                        <td className="py-5 px-8 text-center">
+                                            <div className="inline-flex flex-col items-center">
+                                                <span className="text-2xl font-black text-slate-900">{doc.totalHours}</span>
+                                                <span className="text-[10px] font-bold text-blue-600 uppercase">ساعة</span>
+                                            </div>
+                                        </td>
+                                        <td className="py-5 px-8">
+                                            <div className="flex flex-wrap gap-2 justify-center">
+                                                {Object.entries(doc.shiftCounts).map(([code, count]) => (
+                                                    <div key={code} className="flex items-center gap-1.5 bg-white border border-slate-100 px-3 py-1.5 rounded-xl shadow-sm">
+                                                        <span className="text-[10px] font-black text-primary">{code}</span>
+                                                        <span className="w-px h-3 bg-slate-200" />
+                                                        <span className="text-[10px] font-black text-slate-600">{count}</span>
+                                                    </div>
+                                                ))}
+                                                {doc.totalShifts === 0 && (
+                                                    <span className="text-slate-300 italic text-xs">لا توجد مناوبات</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
         </div>
     );

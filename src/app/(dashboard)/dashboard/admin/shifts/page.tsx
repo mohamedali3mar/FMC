@@ -1,18 +1,39 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PageHeader } from '@/components/PageHeader';
-import { Plus, Edit2, Trash2, Clock, CheckCircle2, XCircle, Search, Save, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Clock, CheckCircle2, XCircle, Search, Save, X, Loader2 } from 'lucide-react';
 import { mockShiftTypes } from '@/lib/mockData';
 import { ShiftType } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { alertsApi } from '@/lib/alerts';
+import { shiftService } from '@/lib/firebase-service';
 
 export default function ShiftsPage() {
-    const [shifts, setShifts] = useState<ShiftType[]>(mockShiftTypes);
+    const [shifts, setShifts] = useState<ShiftType[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentShift, setCurrentShift] = useState<Partial<ShiftType> | null>(null);
+
+    useEffect(() => {
+        const loadShifts = async () => {
+            setIsLoading(true);
+            try {
+                let data = await shiftService.getAll();
+                if (data.length === 0) {
+                    // Seed with default shifts if empty
+                    await shiftService.saveBatch(mockShiftTypes);
+                    data = mockShiftTypes;
+                }
+                setShifts(data);
+            } catch (error) {
+                console.error("Error loading shifts:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        loadShifts();
+    }, []);
 
     const filteredShifts = shifts.filter(s =>
         s.name.includes(searchTerm) ||
@@ -33,25 +54,44 @@ export default function ShiftsPage() {
         setIsModalOpen(true);
     };
 
-    const handleSave = (e: React.FormEvent) => {
+    const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!currentShift || !currentShift.code) return;
 
-        if (shifts.some(s => s.code === currentShift.code && s !== currentShift)) {
-            // Updating existing
-            setShifts(shifts.map(s => s.code === currentShift.code ? currentShift as ShiftType : s));
-        } else {
-            // Adding new
-            setShifts([...shifts, currentShift as ShiftType]);
+        try {
+            await shiftService.save(currentShift as ShiftType);
+
+            if (shifts.some(s => s.code === currentShift.code)) {
+                // Updating existing
+                setShifts(shifts.map(s => s.code === currentShift.code ? currentShift as ShiftType : s));
+            } else {
+                // Adding new
+                setShifts([...shifts, currentShift as ShiftType]);
+            }
+            setIsModalOpen(false);
+        } catch (error) {
+            alert("حدث خطأ أثناء حفظ البيانات");
         }
-        setIsModalOpen(false);
     };
 
-    const handleDelete = (code: string) => {
+    const handleDelete = async (code: string) => {
         if (confirm('هل أنت متأكد من حذف هذا المناوبة؟ سيؤثر هذا على الجداول المرتبطة.')) {
-            setShifts(shifts.filter(s => s.code !== code));
+            try {
+                await shiftService.delete(code);
+                setShifts(shifts.filter(s => s.code !== code));
+            } catch (error) {
+                alert("حدث خطأ أثناء الحذف");
+            }
         }
     };
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center py-20">
+                <Loader2 className="w-10 h-10 text-primary animate-spin" />
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">

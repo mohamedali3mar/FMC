@@ -1,9 +1,10 @@
 import { db } from './firebase';
-import { collection, doc, getDocs, setDoc, deleteDoc, writeBatch, query, where } from 'firebase/firestore';
-import { Doctor, RosterRecord } from './types';
+import { collection, doc, getDocs, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { Doctor, RosterRecord, ShiftType } from './types';
 
 const DOCTORS_COLLECTION = 'doctors';
 const ROSTERS_COLLECTION = 'rosters';
+const SHIFTS_COLLECTION = 'shifts';
 
 // Helper to commit batches in chunks of 500
 async function commitBatches(items: any[], setRefCallback: (batch: any, item: any) => void) {
@@ -41,17 +42,14 @@ export const rosterService = {
         return snapshot.docs.map(doc => doc.data() as RosterRecord);
     },
     getByMonth: async (monthPrefix: string): Promise<RosterRecord[]> => {
-        // Simple client-side filtering since dates are string "YYYY-MM-DD"
-        // To be highly optimized, we could use bounds, but fetching the collection is fine for small/medium scale 
         const snapshot = await getDocs(collection(db, ROSTERS_COLLECTION));
         return snapshot.docs
             .map(doc => doc.data() as RosterRecord)
             .filter(r => r.date.startsWith(monthPrefix));
     },
     saveBatch: async (rosters: RosterRecord[], targetMonthPrefix: string): Promise<void> => {
-        // First delete existing rosters for the specific month to avoid duplicates
         const snapshot = await getDocs(collection(db, ROSTERS_COLLECTION));
-        const toDelete = snapshot.docs.filter(doc => doc.data().date.startsWith(targetMonthPrefix));
+        const toDelete = snapshot.docs.filter(doc => (doc.data() as RosterRecord).date.startsWith(targetMonthPrefix));
 
         if (toDelete.length > 0) {
             await commitBatches(toDelete, (batch, docSnap: any) => {
@@ -59,11 +57,29 @@ export const rosterService = {
             });
         }
 
-        // Now insert new rosters 
         await commitBatches(rosters, (batch, roster) => {
             const docId = `${roster.date}_${roster.doctorId}_${roster.shiftCode}`;
             const docRef = doc(db, ROSTERS_COLLECTION, docId);
             batch.set(docRef, roster);
         });
+    }
+};
+
+export const shiftService = {
+    getAll: async (): Promise<ShiftType[]> => {
+        const snapshot = await getDocs(collection(db, SHIFTS_COLLECTION));
+        return snapshot.docs.map(doc => doc.data() as ShiftType);
+    },
+    saveBatch: async (shifts: ShiftType[]): Promise<void> => {
+        await commitBatches(shifts, (batch, shift: ShiftType) => {
+            const docRef = doc(db, SHIFTS_COLLECTION, shift.code);
+            batch.set(docRef, shift);
+        });
+    },
+    save: async (shift: ShiftType): Promise<void> => {
+        await setDoc(doc(db, SHIFTS_COLLECTION, shift.code), shift);
+    },
+    delete: async (code: string): Promise<void> => {
+        await deleteDoc(doc(db, SHIFTS_COLLECTION, code));
     }
 };
