@@ -104,20 +104,15 @@ export default function MonthlyStatsPage() {
                 const shiftCode = (record.shiftCode || '').trim().toUpperCase();
                 const shiftType = shifts.find(s => s.code.toUpperCase() === shiftCode);
 
-                // Track counts for the breakdown UI
+                // Track counts for the breakdown UI (Keep showing everything for transparency)
                 shiftCounts[shiftCode] = (shiftCounts[shiftCode] || 0) + 1;
 
-                // If shift type is found, use its duration
-                if (shiftType) {
-                    if (shiftType.countsAsWorkingShift) {
-                        totalHours += shiftType.durationHours;
-                        totalShifts += 1;
-                    }
-                } else {
-                    // Fallback: If shift type is NOT found, count it as 1 shift and 0 hours
-                    // This ensures the user sees that something was recorded
+                // CRITICAL: Only count as working shift if it exists in DB AND is marked as countsAsWorkingShift
+                if (shiftType && shiftType.countsAsWorkingShift) {
+                    totalHours += shiftType.durationHours;
                     totalShifts += 1;
                 }
+                // No fallback for unknown codes - they are ignored in totals as requested
             });
 
             return {
