@@ -8,9 +8,8 @@ import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import { alertsApi } from '@/lib/alerts';
 import { standardizeDepartment } from '@/lib/department-mapper';
-import { doctorService, rosterService, shiftService } from '@/lib/firebase-service';
-import { RosterRecord, Doctor, ShiftType } from '@/lib/types';
-import { detectShiftConflicts } from '@/lib/roster-utils';
+import { doctorService, rosterService } from '@/lib/firebase-service';
+import { RosterRecord, Doctor } from '@/lib/types';
 
 export default function UploadRosterPage() {
     const [file, setFile] = useState<File | null>(null);
@@ -53,11 +52,8 @@ export default function UploadRosterPage() {
                 let newAlerts = 0;
                 let monthlyShifts: RosterRecord[] = [];
 
-                // 1. Fetch current doctors and shift types to check for conflicts
-                const [existingDoctors, shiftTypes] = await Promise.all([
-                    doctorService.getAll(),
-                    shiftService.getAll()
-                ]);
+                // 1. Fetch current doctors to check for missing ones
+                const existingDoctors = await doctorService.getAll();
                 const existingCodes = new Set(existingDoctors.map(d => d.fingerprintCode));
                 const newAutoRegisteredDoctors: Doctor[] = [];
                 const unregisteredSeenInThisFile = new Set<string>();
@@ -159,41 +155,11 @@ export default function UploadRosterPage() {
 
                 if (parsedCount > 0) {
                     await rosterService.saveBatch(monthlyShifts, targetMonthPrefix);
-
-                    // 3. Shift Conflict Validation (6-hour rest rule)
-                    // Group assignments by doctor for validation
-                    const doctorAssignments = new Map<string, RosterRecord[]>();
-                    monthlyShifts.forEach(r => {
-                        if (!doctorAssignments.has(r.doctorId)) doctorAssignments.set(r.doctorId, []);
-                        doctorAssignments.get(r.doctorId)!.push(r);
-                    });
-
-                    let conflictCount = 0;
-                    doctorAssignments.forEach((assignments, doctorId) => {
-                        const doctor = existingDoctors.find(d => d.fingerprintCode === doctorId) ||
-                            newAutoRegisteredDoctors.find(d => d.fingerprintCode === doctorId);
-                        const doctorName = doctor?.fullNameArabic || doctorId;
-
-                        const conflicts = detectShiftConflicts(assignments, shiftTypes);
-                        conflicts.forEach(c => {
-                            alertsApi.addAlert({
-                                type: 'system',
-                                message: `تضارب في جدول ${doctorName} يوم ${c.date}: ${c.message}`,
-                                relatedId: doctorId
-                            });
-                            conflictCount++;
-                            newAlerts++;
-                        });
-                    });
-
                     if (newAutoRegisteredDoctors.length > 0) {
                         await doctorService.saveBatch(newAutoRegisteredDoctors);
                     }
                     setStatus('success');
                     let successMsg = `تم رفع وتحديث جدول المناوبات بنجاح (${parsedCount} مناوبة).`;
-                    if (conflictCount > 0) {
-                        successMsg += `\nتم رصد ${conflictCount} مخالفات لقاعدة الراحة (6 ساعات) وتم إضافة تنبيهات بها.`;
-                    }
                     if (newAutoRegisteredDoctors.length > 0) {
                         successMsg += `\nتم تسجيل ${newAutoRegisteredDoctors.length} أطباء جدد آلياً بنجاح.`;
                     }

@@ -31,7 +31,6 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMont
 import { ar } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
 import { forceDownloadExcel } from '@/lib/excel-utils';
-import { detectShiftConflicts } from '@/lib/roster-utils';
 
 export default function RosterPage() {
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -144,20 +143,6 @@ export default function RosterPage() {
         try {
             setIsLoading(true);
             const roster = currentAssignment as RosterRecord;
-
-            // Shift Conflict Validation (6-hour rest rule)
-            const doctorRosters = rosters.filter(r => r.doctorId === roster.doctorId && r.id !== roster.id);
-            const tempRosters = [...doctorRosters, roster];
-            const conflicts = detectShiftConflicts(tempRosters, shiftTypes);
-
-            if (conflicts.length > 0) {
-                const messages = conflicts.map(c => c.message).join('\n');
-                if (!window.confirm(`⚠️ تنبيه تضارب آلي:\n\n${messages}\n\nهل تريد حفظ التكليف رغم ذلك؟`)) {
-                    setIsLoading(false);
-                    return;
-                }
-            }
-
             await rosterService.save(roster);
             const monthFilter = format(currentDate, 'yyyy-MM');
             const updatedRosters = await rosterService.getByMonth(monthFilter);

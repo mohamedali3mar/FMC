@@ -15,8 +15,6 @@ import {
 } from 'lucide-react';
 import { format, getDaysInMonth, startOfMonth, addDays } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { detectShiftConflicts, ShiftConflict } from '@/lib/roster-utils';
-import { AlertTriangle } from 'lucide-react';
 
 // Fixed order for departments as per the "Operational Schedule" (الجدول التشغيلي)
 const DEPARTMENT_ORDER = [
@@ -73,8 +71,7 @@ const GridCell = memo(({
     isSaving,
     onEdit,
     onSaveShift,
-    shiftTypes,
-    conflict
+    shiftTypes
 }: {
     doctor: Doctor;
     day: any;
@@ -84,7 +81,6 @@ const GridCell = memo(({
     onEdit: () => void;
     onSaveShift: (shiftCode: string | null) => void;
     shiftTypes: ShiftType[];
-    conflict?: ShiftConflict;
 }) => {
     // Determine visuals based on shift code
     const isMorning = roster?.shiftCode.includes('M') || roster?.shiftCode === '7M';
@@ -129,22 +125,16 @@ const GridCell = memo(({
                 </div>
             ) : roster ? (
                 <div className={cn(
-                    "w-full h-full flex items-center justify-center font-black text-[11px] transition-all relative",
+                    "w-full h-full flex items-center justify-center font-black text-[11px] transition-all",
                     is24H ? "bg-amber-100 text-amber-700" :
                         isMorning ? "bg-blue-50 text-blue-600" :
                             isEvening ? "bg-indigo-50 text-indigo-600" :
-                                "bg-slate-100 text-slate-800",
-                    conflict && "bg-rose-100 text-rose-700 ring-1 ring-rose-300 ring-inset"
-                )} title={conflict?.message}>
+                                "bg-slate-100 text-slate-800"
+                )}>
                     {roster.shiftCode}
-                    {conflict && (
-                        <div className="absolute top-0.5 right-0.5">
-                            <AlertTriangle className="w-2.5 h-2.5 text-rose-600" />
-                        </div>
-                    )}
                 </div>
             ) : (
-                <div className="opacity-0 hover:opacity-100 flex items-center justify-center h-full transition-opacity group relative">
+                <div className="opacity-0 hover:opacity-100 flex items-center justify-center h-full transition-opacity group">
                     <Plus className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary/50" />
                 </div>
             )}
@@ -155,8 +145,7 @@ const GridCell = memo(({
         prev.isEditing === next.isEditing &&
         prev.isSaving === next.isSaving &&
         prev.day.date === next.day.date &&
-        prev.doctor.fingerprintCode === next.doctor.fingerprintCode &&
-        prev.conflict?.type === next.conflict?.type;
+        prev.doctor.fingerprintCode === next.doctor.fingerprintCode;
 });
 
 GridCell.displayName = 'GridCell';
@@ -196,27 +185,6 @@ export function RosterGridView({
         });
         return map;
     }, [rosters]);
-
-    const conflictsMap = useMemo(() => {
-        const map = new Map<string, ShiftConflict>();
-
-        // Group assignments by doctor
-        const doctorAssignments = new Map<string, RosterRecord[]>();
-        rosters.forEach(r => {
-            if (!doctorAssignments.has(r.doctorId)) doctorAssignments.set(r.doctorId, []);
-            doctorAssignments.get(r.doctorId)!.push(r);
-        });
-
-        // Run detection for each doctor
-        doctorAssignments.forEach((assignments, doctorId) => {
-            const conflicts = detectShiftConflicts(assignments, shiftTypes);
-            conflicts.forEach(c => {
-                map.set(`${doctorId}_${c.date}`, c);
-            });
-        });
-
-        return map;
-    }, [rosters, shiftTypes]);
 
     const processedData = useMemo(() => {
         const activeDoctorIdsWithShifts = new Set(rosters.map(r => r.doctorId));
@@ -408,7 +376,6 @@ export function RosterGridView({
                                                     isEditing={isEditing}
                                                     isSaving={isSaving}
                                                     shiftTypes={shiftTypes}
-                                                    conflict={conflictsMap.get(cellKey)}
                                                     onEdit={() => setEditingCell({ doctorId: doctor.fingerprintCode, date: day.date })}
                                                     onSaveShift={(code) => handleCellAction(doctor.fingerprintCode, day.date, code)}
                                                 />
