@@ -458,6 +458,14 @@ function OfficialPrintReport({ groupedData, selectedDate }: { groupedData: any[]
                         const maxLen = Math.max(group.morning.length, group.evening.length);
                         if (maxLen === 0) return null;
 
+                        const formatName = (name: string | undefined) => {
+                            if (!name) return '-';
+                            const parts = name.trim().split(' ');
+                            if (parts.length <= 2) return name;
+                            // Keep the first two names for space saving in print
+                            return `${parts[0]} ${parts[1]}`;
+                        };
+
                         const rows = [];
                         for (let i = 0; i < maxLen; i++) {
                             const mDoc = group.morning[i];
@@ -470,10 +478,10 @@ function OfficialPrintReport({ groupedData, selectedDate }: { groupedData: any[]
                                             {group.department}
                                         </td>
                                     )}
-                                    <td className="font-bold">{mDoc?.fullNameArabic || '-'}</td>
+                                    <td className="font-bold">{formatName(mDoc?.fullNameArabic)}</td>
                                     <td className="text-xs">{mDoc?.classification || '-'}</td>
                                     <td className="font-mono text-sm tracking-tighter max-w-[120px]" dir="ltr">{mDoc?.phoneNumber || '-'}</td>
-                                    <td className="font-bold">{eDoc?.fullNameArabic || '-'}</td>
+                                    <td className="font-bold">{formatName(eDoc?.fullNameArabic)}</td>
                                     <td className="text-xs">{eDoc?.classification || '-'}</td>
                                     <td className="font-mono text-sm tracking-tighter max-w-[120px]" dir="ltr">{eDoc?.phoneNumber || '-'}</td>
                                 </tr>
