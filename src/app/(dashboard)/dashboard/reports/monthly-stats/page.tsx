@@ -110,7 +110,7 @@ export default function MonthlyStatsPage() {
                 // CRITICAL: Only count as working shift if it exists in DB AND is marked as countsAsWorkingShift
                 if (shiftType && shiftType.countsAsWorkingShift) {
                     totalHours += shiftType.durationHours;
-                    totalShifts += 1;
+                    totalShifts += (shiftType.durationHours / 12);
                 }
                 // No fallback for unknown codes - they are ignored in totals as requested
             });
