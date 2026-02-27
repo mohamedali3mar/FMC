@@ -458,6 +458,12 @@ function OfficialPrintReport({ groupedData, selectedDate }: { groupedData: any[]
                         const maxLen = Math.max(group.morning.length, group.evening.length);
                         if (maxLen === 0) return null;
 
+                        const formatClassification = (cls: string | undefined) => {
+                            if (!cls) return '-';
+                            if (cls === 'طبيب مقيم') return 'ط مقيم';
+                            return cls;
+                        };
+
                         const rows = [];
                         for (let i = 0; i < maxLen; i++) {
                             const mDoc = group.morning[i];
@@ -471,10 +477,10 @@ function OfficialPrintReport({ groupedData, selectedDate }: { groupedData: any[]
                                         </td>
                                     )}
                                     <td className="font-bold">{mDoc?.fullNameArabic || '-'}</td>
-                                    <td className="text-xs">{mDoc?.classification || '-'}</td>
+                                    <td className="text-xs">{formatClassification(mDoc?.classification)}</td>
                                     <td className="font-mono text-sm tracking-tighter max-w-[120px]" dir="ltr">{mDoc?.phoneNumber || '-'}</td>
                                     <td className="font-bold">{eDoc?.fullNameArabic || '-'}</td>
-                                    <td className="text-xs">{eDoc?.classification || '-'}</td>
+                                    <td className="text-xs">{formatClassification(eDoc?.classification)}</td>
                                     <td className="font-mono text-sm tracking-tighter max-w-[120px]" dir="ltr">{eDoc?.phoneNumber || '-'}</td>
                                 </tr>
                             );
