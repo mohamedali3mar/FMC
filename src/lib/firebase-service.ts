@@ -77,17 +77,26 @@ export const rosterService = {
         const CHUNK_SIZE_IN = 30;
         for (let i = 0; i < doctorIds.length; i += CHUNK_SIZE_IN) {
             const chunk = doctorIds.slice(i, i + CHUNK_SIZE_IN);
-            const q = query(
-                collection(db, ROSTERS_COLLECTION),
-                where('doctorId', 'in', chunk),
-                where('date', '>=', targetMonthPrefix),
-                where('date', '<', nextPrefix)
-            );
-            const snapshot = await getDocs(q);
-            if (snapshot.docs.length > 0) {
-                const deleteBatch = writeBatch(db);
-                snapshot.docs.forEach(d => deleteBatch.delete(d.ref));
-                await deleteBatch.commit();
+            try {
+                const q = query(
+                    collection(db, ROSTERS_COLLECTION),
+                    where('doctorId', 'in', chunk),
+                    where('date', '>=', targetMonthPrefix),
+                    where('date', '<', nextPrefix)
+                );
+                const snapshot = await getDocs(q);
+                if (snapshot.docs.length > 0) {
+                    for (let j = 0; j < snapshot.docs.length; j += 450) {
+                        const deleteBatch = writeBatch(db);
+                        const docsChunk = snapshot.docs.slice(j, j + 450);
+                        docsChunk.forEach(d => deleteBatch.delete(d.ref));
+                        await deleteBatch.commit();
+                    }
+                }
+            } catch (err: any) {
+                // If the user hasn't created the required Firebase index, skip deletion instead of failing.
+                // The subsequent save will just overwrite using stable IDs.
+                console.warn(`[saveBatch] Skipping deletion for chunk due to potential missing index:`, err.message);
             }
         }
 
