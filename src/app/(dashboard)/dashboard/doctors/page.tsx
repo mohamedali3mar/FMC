@@ -101,7 +101,8 @@ const MEDICAL_SPECIALTIES = [
 
 function DoctorsContent() {
     const [searchTerm, setSearchTerm] = useState('');
-    const [filterClassification, setFilterClassification] = useState<string>('الكل');
+    const [filterClassification, setFilterClassification] = useState<Classification | 'الكل'>('الكل');
+    const [filterSpecialty, setFilterSpecialty] = useState<string>('الكل');
     const [doctors, setDoctors] = useState<Doctor[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -158,6 +159,16 @@ function DoctorsContent() {
         fetchDoctors();
     }, [prefillCode, prefillName, prefillSpecialty, prefillDept]);
 
+    const specialties = React.useMemo(() => {
+        const specs = new Set<string>();
+        doctors.forEach(d => {
+            if (d.specialty && d.specialty.trim() !== '') {
+                specs.add(d.specialty.trim());
+            }
+        });
+        return ['الكل', ...Array.from(specs).sort()];
+    }, [doctors]);
+
     const sortedAndFilteredDoctors = React.useMemo(() => {
         let result = doctors;
 
@@ -182,7 +193,12 @@ function DoctorsContent() {
             result = result.filter(doctor => doctor.classification === filterClassification);
         }
 
-        // 3. Sorting
+        // 3. Specialty Filter
+        if (filterSpecialty !== 'الكل') {
+            result = result.filter(doctor => doctor.specialty === filterSpecialty);
+        }
+
+        // 4. Sorting
         result = [...result].sort((a, b) => {
             const valA = String(a[sortColumn] || '').toLowerCase();
             const valB = String(b[sortColumn] || '').toLowerCase();
@@ -193,7 +209,7 @@ function DoctorsContent() {
         });
 
         return result;
-    }, [doctors, searchTerm, filterClassification, sortColumn, sortDirection]);
+    }, [doctors, searchTerm, filterClassification, filterSpecialty, sortColumn, sortDirection]);
 
     const classifications: (Classification | 'الكل')[] = ['الكل', 'استشاري', 'أخصائي', 'طبيب مقيم'];
 
@@ -651,18 +667,50 @@ function DoctorsContent() {
 
             <div className="bg-white p-6 rounded-3xl border border-border shadow-sm space-y-6">
                 {/* Modern Filter & Search Bar */}
-                <div className="flex flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/50 p-2 rounded-2xl border border-border max-w-full overflow-hidden">
-                    {/* Badge Filters */}
-                    <div className="flex items-center gap-1.5 overflow-x-auto pb-2 lg:pb-0 w-full lg:w-auto scrollbar-hide">
+                <div className="flex flex-col gap-4 bg-slate-50/50 p-4 rounded-2xl border border-border max-w-full overflow-hidden">
+
+                    <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
+                        {/* Universal Search */}
+                        <div className="relative w-full lg:flex-1">
+                            <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-primary/60 w-5 h-5" />
+                            <input
+                                type="text"
+                                placeholder="البحث الشامل بالاسم، التخصص، الهاتف، الكود..."
+                                className="w-full pr-12 pl-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all bg-white font-bold shadow-sm"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+
+                        {/* Specialty Filter Dropdown */}
+                        <div className="flex items-center gap-3 px-4 py-3 bg-white border border-slate-200 rounded-xl w-full lg:w-64 shadow-sm shrink-0 hover:border-primary/50 transition-colors">
+                            <Filter className="text-primary w-4 h-4 shrink-0" />
+                            <span className="text-xs font-bold text-slate-500 whitespace-nowrap">التخصص:</span>
+                            <select
+                                className="bg-transparent focus:outline-none w-full text-sm font-bold text-slate-900 cursor-pointer appearance-none text-right"
+                                value={filterSpecialty}
+                                onChange={(e) => setFilterSpecialty(e.target.value)}
+                                style={{ direction: 'rtl' }}
+                            >
+                                {specialties.map(s => (
+                                    <option key={s} value={s}>{s === 'الكل' ? 'جميع التخصصات' : s}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Badge Filters for Classification */}
+                    <div className="flex items-center gap-2 overflow-x-auto pb-2 lg:pb-0 w-full scrollbar-hide pt-2 border-t border-slate-200">
+                        <span className="text-sm font-bold text-slate-500 ml-2 whitespace-nowrap">التصنيف:</span>
                         {classifications.map(c => (
                             <button
                                 key={c}
                                 onClick={() => setFilterClassification(c)}
                                 className={cn(
-                                    "px-4 py-2.5 rounded-xl text-sm font-black transition-all whitespace-nowrap border",
+                                    "px-4 py-2 rounded-xl text-sm font-black transition-all whitespace-nowrap border",
                                     filterClassification === c
                                         ? "bg-primary text-white border-primary shadow-md shadow-primary/20"
-                                        : "bg-white text-slate-600 border-border hover:border-slate-300 hover:bg-slate-50"
+                                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                                 )}
                             >
                                 {c}
@@ -670,17 +718,6 @@ function DoctorsContent() {
                         ))}
                     </div>
 
-                    {/* Universal Search */}
-                    <div className="relative w-full lg:max-w-md">
-                        <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-primary/60 w-5 h-5" />
-                        <input
-                            type="text"
-                            placeholder="البحث الشامل بالاسم، التخصص، الهاتف، الكود..."
-                            className="w-full pr-12 pl-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all bg-white font-bold shadow-sm"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
                 </div>
 
                 {isLoading ? (
