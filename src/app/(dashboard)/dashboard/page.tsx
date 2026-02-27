@@ -17,15 +17,11 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { doctorService, rosterService } from '@/lib/firebase-service';
 import { getCurrentDateISO, formatDate } from '@/lib/utils';
-import { alertsApi } from '@/lib/alerts';
-import { DashboardAlert } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
     const { isAdmin } = useAuth();
     const today = getCurrentDateISO();
-
-    const [alerts, setAlerts] = React.useState<DashboardAlert[]>([]);
     const [statsData, setStatsData] = React.useState({
         totalDoctors: 0,
         totalSpecialties: 0,
@@ -36,8 +32,6 @@ export default function DashboardPage() {
     const [isLoading, setIsLoading] = React.useState(true);
 
     React.useEffect(() => {
-        setAlerts(alertsApi.getAlerts().filter(a => !a.isRead));
-
         const loadData = async () => {
             try {
                 const monthPrefix = today.substring(0, 7);
@@ -71,11 +65,6 @@ export default function DashboardPage() {
         { name: 'مناوبات اليوم', value: statsData.todayWorking, icon: CalendarCheck, color: 'bg-amber-500' },
     ];
 
-    const handleDismissAlert = (id: string) => {
-        alertsApi.markAsRead(id);
-        setAlerts(prev => prev.filter(a => a.id !== id));
-    };
-
     return (
         <div className="space-y-8">
             <div className="flex justify-between items-end">
@@ -91,58 +80,6 @@ export default function DashboardPage() {
                     <span>عرض كشف النداء</span>
                 </Link>
             </div>
-
-            {/* Admin Tasks / Alerts Section */}
-            {isAdmin && alerts.length > 0 && (
-                <div className="bg-amber-50 border border-amber-100 rounded-3xl p-6 space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-amber-800 font-black">
-                            <Bell className="w-5 h-5" />
-                            <h3>مهام عاجلة للمسؤول ({alerts.length})</h3>
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {alerts.map((alert) => (
-                            <div key={alert.id} className={cn(
-                                "p-4 rounded-2xl border shadow-sm flex items-center justify-between group transition-all relative",
-                                alert.type === 'conflict' ? "bg-red-50 border-red-200" : "bg-white border-amber-200/50"
-                            )}>
-                                <button
-                                    onClick={() => handleDismissAlert(alert.id)}
-                                    className="absolute -top-2 -right-2 bg-white border border-border rounded-full p-1 text-slate-400 hover:text-red-500 hover:border-red-200 shadow-sm opacity-0 group-hover:opacity-100 transition-all z-10"
-                                    title="تجاهل التنبيه"
-                                >
-                                    <X className="w-3 h-3" />
-                                </button>
-                                <div className="flex items-start gap-4">
-                                    <div className={cn(
-                                        "p-2.5 rounded-xl",
-                                        alert.type === 'conflict' ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"
-                                    )}>
-                                        <AlertTriangle className="w-5 h-5" />
-                                    </div>
-                                    <div>
-                                        <p className={cn(
-                                            "font-black text-sm",
-                                            alert.type === 'conflict' ? "text-red-900" : "text-slate-800"
-                                        )}>{alert.message}</p>
-                                        <p className="text-xs text-slate-500 font-bold mt-1 line-clamp-1">{alert.details}</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Link
-                                        href={`/dashboard/doctors?code=${alert.relatedId}&name=${encodeURIComponent(alert.metadata?.doctorName || '')}&specialty=${encodeURIComponent(alert.metadata?.specialty || '')}&dept=${encodeURIComponent(alert.metadata?.department || '')}`}
-                                        className="flex items-center gap-2 bg-amber-600 text-white px-4 py-2 rounded-xl text-xs font-black hover:bg-amber-700 transition-all whitespace-nowrap"
-                                    >
-                                        <UserPlus className="w-4 h-4" />
-                                        <span>تسجيل</span>
-                                    </Link>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
 
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
