@@ -19,7 +19,10 @@ import {
     Stethoscope as StethoscopeIcon,
     Download,
     Loader2,
-    UploadCloud
+    UploadCloud,
+    ArrowUpDown,
+    ArrowUp,
+    ArrowDown
 } from 'lucide-react';
 import { Doctor, Classification } from '@/lib/types';
 import { doctorService } from '@/lib/firebase-service';
@@ -105,6 +108,12 @@ function DoctorsContent() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentDoctor, setCurrentDoctor] = useState<Partial<Doctor> | null>(null);
     const [isEditMode, setIsEditMode] = useState(false);
+
+    // Sorting state
+    type SortColumn = 'fingerprintCode' | 'fullNameArabic' | 'classification' | 'specialty' | 'department';
+    const [sortColumn, setSortColumn] = useState<SortColumn>('fullNameArabic');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
     const searchParams = useSearchParams();
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const prefillCode = searchParams.get('code');
@@ -149,15 +158,61 @@ function DoctorsContent() {
         fetchDoctors();
     }, [prefillCode, prefillName, prefillSpecialty, prefillDept]);
 
-    const filteredDoctors = doctors.filter(doctor => {
-        const matchesSearch = doctor.fullNameArabic.includes(searchTerm) ||
-            doctor.specialty.includes(searchTerm) ||
-            doctor.fingerprintCode.includes(searchTerm);
-        const matchesFilter = filterClassification === 'الكل' || doctor.classification === filterClassification;
-        return matchesSearch && matchesFilter;
-    });
+    const sortedAndFilteredDoctors = React.useMemo(() => {
+        let result = doctors;
+
+        // 1. Universal Search Filter
+        if (searchTerm) {
+            const lowerSearch = searchTerm.toLowerCase();
+            result = result.filter(doctor => {
+                return (
+                    (doctor.fullNameArabic || '').toLowerCase().includes(lowerSearch) ||
+                    (doctor.specialty || '').toLowerCase().includes(lowerSearch) ||
+                    (doctor.department || '').toLowerCase().includes(lowerSearch) ||
+                    (doctor.fingerprintCode || '').toLowerCase().includes(lowerSearch) ||
+                    (doctor.phoneNumber || '').toLowerCase().includes(lowerSearch) ||
+                    (doctor.nationalId || '').toLowerCase().includes(lowerSearch) ||
+                    (doctor.classification || '').toLowerCase().includes(lowerSearch)
+                );
+            });
+        }
+
+        // 2. Classification Filter
+        if (filterClassification !== 'الكل') {
+            result = result.filter(doctor => doctor.classification === filterClassification);
+        }
+
+        // 3. Sorting
+        result = [...result].sort((a, b) => {
+            const valA = String(a[sortColumn] || '').toLowerCase();
+            const valB = String(b[sortColumn] || '').toLowerCase();
+
+            if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+            if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        return result;
+    }, [doctors, searchTerm, filterClassification, sortColumn, sortDirection]);
 
     const classifications: (Classification | 'الكل')[] = ['الكل', 'استشاري', 'أخصائي', 'طبيب مقيم'];
+
+    const handleSort = (column: SortColumn) => {
+        if (sortColumn === column) {
+            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortColumn(column);
+            setSortDirection('asc');
+        }
+    };
+
+    // Sort Icon helper
+    const SortIcon = ({ column }: { column: SortColumn }) => {
+        if (sortColumn !== column) return <ArrowUpDown className="w-3 h-3 text-slate-300 inline-block mr-1" />;
+        return sortDirection === 'asc'
+            ? <ArrowUp className="w-3 h-3 text-primary inline-block mr-1" />
+            : <ArrowDown className="w-3 h-3 text-primary inline-block mr-1" />;
+    };
 
     const handleOpenModal = (doctor: Doctor | null = null) => {
         setIsEditMode(!!doctor);
@@ -594,7 +649,7 @@ function DoctorsContent() {
                         <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
                         <input
                             type="text"
-                            placeholder="البحث بالاسم، التخصص، أو الكود..."
+                            placeholder="البحث الشامل بالاسم، التخصص، الهاتف، الكود..."
                             className="w-full pr-12 pl-4 py-3.5 rounded-2xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-slate-50/50 font-medium"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -624,19 +679,31 @@ function DoctorsContent() {
                         <table className="w-full text-right">
                             <thead>
                                 <tr className="bg-slate-50 border-b border-border text-slate-500 text-xs font-black uppercase tracking-wider">
-                                    <th className="py-4 px-6">كود البصمة</th>
-                                    <th className="py-4 px-6">الاسم الكامل</th>
+                                    <th className="py-4 px-6 text-center w-16">م</th>
+                                    <th className="py-4 px-6 cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => handleSort('fingerprintCode')}>
+                                        كود البصمة <SortIcon column="fingerprintCode" />
+                                    </th>
+                                    <th className="py-4 px-6 cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => handleSort('fullNameArabic')}>
+                                        الاسم الكامل <SortIcon column="fullNameArabic" />
+                                    </th>
                                     <th className="py-4 px-6">الرقم القومي</th>
-                                    <th className="py-4 px-6">التصنيف</th>
-                                    <th className="py-4 px-6">التخصص</th>
+                                    <th className="py-4 px-6 cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => handleSort('classification')}>
+                                        التصنيف <SortIcon column="classification" />
+                                    </th>
+                                    <th className="py-4 px-6 cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => handleSort('department')}>
+                                        القسم والتخصص <SortIcon column="department" />
+                                    </th>
                                     <th className="py-4 px-6">رقم الهاتف</th>
                                     <th className="py-4 px-6">الحالة</th>
                                     <th className="py-4 px-6 text-center">الإجراءات</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
-                                {filteredDoctors.map((doctor) => (
+                                {sortedAndFilteredDoctors.map((doctor, index) => (
                                     <tr key={doctor.fingerprintCode} className="hover:bg-slate-50/50 transition-colors group">
+                                        <td className="py-4 px-6 font-mono text-center text-xs font-bold text-slate-400 bg-slate-50/30">
+                                            {index + 1}
+                                        </td>
                                         <td className="py-4 px-6 font-mono text-xs text-slate-500 font-bold">{doctor.fingerprintCode}</td>
                                         <td className="py-4 px-6 font-black text-slate-900">{doctor.fullNameArabic}</td>
                                         <td className="py-4 px-6 font-mono text-sm tracking-tighter text-slate-600 font-bold" dir="ltr">{doctor.nationalId || '-'}</td>
@@ -650,7 +717,10 @@ function DoctorsContent() {
                                                 {doctor.classification}
                                             </span>
                                         </td>
-                                        <td className="py-4 px-6 text-sm font-bold text-slate-600">{doctor.specialty}</td>
+                                        <td className="py-4 px-6">
+                                            <p className="text-sm font-bold text-slate-700">{doctor.department}</p>
+                                            <p className="text-xs text-slate-500 font-medium">{doctor.specialty || 'بدون تخصص'}</p>
+                                        </td>
                                         <td className="py-4 px-6 font-mono text-sm tracking-tighter font-bold" dir="ltr">{doctor.phoneNumber}</td>
                                         <td className="py-4 px-6">
                                             <button
@@ -693,7 +763,7 @@ function DoctorsContent() {
                                 ))}
                             </tbody>
                         </table>
-                        {filteredDoctors.length === 0 && (
+                        {sortedAndFilteredDoctors.length === 0 && (
                             <div className="py-20 text-center space-y-4">
                                 <div className="bg-slate-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto text-slate-200">
                                     <Search className="w-10 h-10" />
