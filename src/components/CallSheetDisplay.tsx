@@ -322,8 +322,8 @@ function ShiftTable({ doctors, onCall, onCopy, copiedId, prefix }: {
     }
 
     return (
-        <div className="w-full">
-            <table className="w-full text-right border-collapse border border-slate-200">
+        <div className="w-full overflow-x-auto">
+            <table className="w-full min-w-[500px] text-right border-collapse border border-slate-200">
                 <thead>
                     <tr className="bg-slate-50 text-slate-600 font-black text-xs">
                         <th className="border border-slate-200 px-4 py-3 w-1/2">الاسم</th>
