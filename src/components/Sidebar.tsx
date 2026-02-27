@@ -23,7 +23,7 @@ export function Sidebar() {
 
     const links = [
         { name: 'لوحة التحكم', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'viewer'] },
-        { name: 'المهام العاجلة', href: '/dashboard/admin/tasks', icon: Bell, roles: ['admin'] },
+        { name: 'المهام العاجلة', href: '/dashboard/tasks', icon: Bell, roles: ['admin'] },
         { name: 'النداء اليومي', href: '/call-sheet', icon: PhoneCall, roles: ['admin', 'viewer'] },
         { name: 'إدارة الأطباء', href: '/dashboard/doctors', icon: Users, roles: ['admin'] },
         { name: 'جدول المناوبات', href: '/dashboard/admin/roster', icon: Calendar, roles: ['admin'] },
