@@ -208,10 +208,16 @@ function DoctorsContent() {
 
     // Sort Icon helper
     const SortIcon = ({ column }: { column: SortColumn }) => {
-        if (sortColumn !== column) return <ArrowUpDown className="w-3 h-3 text-slate-300 inline-block mr-1" />;
-        return sortDirection === 'asc'
-            ? <ArrowUp className="w-3 h-3 text-primary inline-block mr-1" />
-            : <ArrowDown className="w-3 h-3 text-primary inline-block mr-1" />;
+        const isActive = sortColumn === column;
+        return (
+            <div className={cn(
+                "flex flex-col items-center justify-center -space-y-1 transition-all duration-300",
+                isActive ? "opacity-100" : "opacity-30 group-hover:opacity-70"
+            )}>
+                <ArrowUp className={cn("w-3 h-3", isActive && sortDirection === 'asc' ? "text-primary" : "text-slate-400")} />
+                <ArrowDown className={cn("w-3 h-3", isActive && sortDirection === 'desc' ? "text-primary" : "text-slate-400")} />
+            </div>
+        );
     };
 
     const handleOpenModal = (doctor: Doctor | null = null) => {
@@ -644,29 +650,36 @@ function DoctorsContent() {
             />
 
             <div className="bg-white p-6 rounded-3xl border border-border shadow-sm space-y-6">
-                <div className="flex flex-col md:flex-row gap-4">
-                    <div className="relative flex-1">
-                        <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
+                {/* Modern Filter & Search Bar */}
+                <div className="flex flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/50 p-2 rounded-2xl border border-border max-w-full overflow-hidden">
+                    {/* Badge Filters */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-2 lg:pb-0 w-full lg:w-auto scrollbar-hide">
+                        {classifications.map(c => (
+                            <button
+                                key={c}
+                                onClick={() => setFilterClassification(c)}
+                                className={cn(
+                                    "px-4 py-2.5 rounded-xl text-sm font-black transition-all whitespace-nowrap border",
+                                    filterClassification === c
+                                        ? "bg-primary text-white border-primary shadow-md shadow-primary/20"
+                                        : "bg-white text-slate-600 border-border hover:border-slate-300 hover:bg-slate-50"
+                                )}
+                            >
+                                {c}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Universal Search */}
+                    <div className="relative w-full lg:max-w-md">
+                        <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-primary/60 w-5 h-5" />
                         <input
                             type="text"
                             placeholder="البحث الشامل بالاسم، التخصص، الهاتف، الكود..."
-                            className="w-full pr-12 pl-4 py-3.5 rounded-2xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-slate-50/50 font-medium"
+                            className="w-full pr-12 pl-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all bg-white font-bold shadow-sm"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
-                    </div>
-                    <div className="flex items-center gap-3 px-4 py-2 border border-border rounded-2xl bg-slate-50/50 min-w-[220px]">
-                        <Filter className="text-muted-foreground w-4 h-4" />
-                        <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">تصفية حسب:</span>
-                        <select
-                            className="bg-transparent focus:outline-none w-full text-sm font-bold text-slate-700 cursor-pointer"
-                            value={filterClassification}
-                            onChange={(e) => setFilterClassification(e.target.value)}
-                        >
-                            {classifications.map(c => (
-                                <option key={c} value={c}>{c}</option>
-                            ))}
-                        </select>
                     </div>
                 </div>
 
@@ -679,23 +692,47 @@ function DoctorsContent() {
                         <table className="w-full text-right">
                             <thead>
                                 <tr className="bg-slate-50 border-b border-border text-slate-500 text-xs font-black uppercase tracking-wider">
-                                    <th className="py-4 px-6 text-center w-16">م</th>
-                                    <th className="py-4 px-6 cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => handleSort('fingerprintCode')}>
-                                        كود البصمة <SortIcon column="fingerprintCode" />
+                                    <th className="py-4 px-6 text-center w-16 align-middle">م</th>
+                                    <th
+                                        className="py-4 px-6 cursor-pointer group hover:bg-slate-100/70 hover:text-primary transition-all select-none align-middle"
+                                        onClick={() => handleSort('fingerprintCode')}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span>كود البصمة</span>
+                                            <SortIcon column="fingerprintCode" />
+                                        </div>
                                     </th>
-                                    <th className="py-4 px-6 cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => handleSort('fullNameArabic')}>
-                                        الاسم الكامل <SortIcon column="fullNameArabic" />
+                                    <th
+                                        className="py-4 px-6 cursor-pointer group hover:bg-slate-100/70 hover:text-primary transition-all select-none align-middle"
+                                        onClick={() => handleSort('fullNameArabic')}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span>الاسم الكامل</span>
+                                            <SortIcon column="fullNameArabic" />
+                                        </div>
                                     </th>
-                                    <th className="py-4 px-6">الرقم القومي</th>
-                                    <th className="py-4 px-6 cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => handleSort('classification')}>
-                                        التصنيف <SortIcon column="classification" />
+                                    <th className="py-4 px-6 align-middle">الرقم القومي</th>
+                                    <th
+                                        className="py-4 px-6 cursor-pointer group hover:bg-slate-100/70 hover:text-primary transition-all select-none align-middle"
+                                        onClick={() => handleSort('classification')}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span>التصنيف</span>
+                                            <SortIcon column="classification" />
+                                        </div>
                                     </th>
-                                    <th className="py-4 px-6 cursor-pointer hover:bg-slate-100 transition-colors select-none" onClick={() => handleSort('department')}>
-                                        القسم والتخصص <SortIcon column="department" />
+                                    <th
+                                        className="py-4 px-6 cursor-pointer group hover:bg-slate-100/70 hover:text-primary transition-all select-none align-middle"
+                                        onClick={() => handleSort('department')}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span>القسم والتخصص</span>
+                                            <SortIcon column="department" />
+                                        </div>
                                     </th>
-                                    <th className="py-4 px-6">رقم الهاتف</th>
-                                    <th className="py-4 px-6">الحالة</th>
-                                    <th className="py-4 px-6 text-center">الإجراءات</th>
+                                    <th className="py-4 px-6 align-middle">رقم الهاتف</th>
+                                    <th className="py-4 px-6 align-middle">الحالة</th>
+                                    <th className="py-4 px-6 text-center align-middle">الإجراءات</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
