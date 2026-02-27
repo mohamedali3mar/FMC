@@ -60,44 +60,19 @@ export const rosterService = {
         return snapshot.docs.map(doc => doc.data() as RosterRecord);
     },
     saveBatch: async (rosters: RosterRecord[], targetMonthPrefix: string): Promise<void> => {
-        // 1. Identify unique doctors in this batch
-        const doctorIds = Array.from(new Set(rosters.map(r => r.doctorId)));
+        // 1. Surgical deletion: Delete existing records exactly for the incoming shifts
+        // We know exactly what we are overwriting because IDs are deterministic: `date_doctorId`
+        const toDeleteIds = rosters.map(r => `${r.date}_${r.doctorId}`);
+        const uniqueDeleteIds = Array.from(new Set(toDeleteIds));
 
-        // 2. Surgical deletion: Only delete existing records for THESE doctors in THIS month
-        // This allows partial uploads (e.g. by department) without wiping the whole month
-        const nextMonth = (monthStr: string) => {
-            const [year, month] = monthStr.split('-').map(Number);
-            if (month === 12) return `${year + 1}-01`;
-            return `${year}-${String(month + 1).padStart(2, '0')}`;
-        };
-        const nextPrefix = nextMonth(targetMonthPrefix);
-
-        // Fetch existing records for these doctors
-        // Firestore 'in' operator supports up to 30 values. We chunk the doctors.
-        const CHUNK_SIZE_IN = 30;
-        for (let i = 0; i < doctorIds.length; i += CHUNK_SIZE_IN) {
-            const chunk = doctorIds.slice(i, i + CHUNK_SIZE_IN);
-            try {
-                const q = query(
-                    collection(db, ROSTERS_COLLECTION),
-                    where('doctorId', 'in', chunk),
-                    where('date', '>=', targetMonthPrefix),
-                    where('date', '<', nextPrefix)
-                );
-                const snapshot = await getDocs(q);
-                if (snapshot.docs.length > 0) {
-                    for (let j = 0; j < snapshot.docs.length; j += 450) {
-                        const deleteBatch = writeBatch(db);
-                        const docsChunk = snapshot.docs.slice(j, j + 450);
-                        docsChunk.forEach(d => deleteBatch.delete(d.ref));
-                        await deleteBatch.commit();
-                    }
-                }
-            } catch (err: any) {
-                // If the user hasn't created the required Firebase index, skip deletion instead of failing.
-                // The subsequent save will just overwrite using stable IDs.
-                console.warn(`[saveBatch] Skipping deletion for chunk due to potential missing index:`, err.message);
-            }
+        // Delete all incoming IDs in chunks of 450 to avoid Firebase limit
+        for (let i = 0; i < uniqueDeleteIds.length; i += 450) {
+            const chunk = uniqueDeleteIds.slice(i, i + 450);
+            const deleteBatch = writeBatch(db);
+            chunk.forEach(id => {
+                deleteBatch.delete(doc(db, ROSTERS_COLLECTION, id));
+            });
+            await deleteBatch.commit();
         }
 
         // 3. Save new records with stable ID (date_doctorId)
