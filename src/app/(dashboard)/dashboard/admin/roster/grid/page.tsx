@@ -8,17 +8,27 @@ import { rosterService, doctorService, shiftService } from '@/lib/firebase-servi
 import { mockShiftTypes } from '@/lib/mockData';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { ArrowLeft, Maximize2, Minimize2, Save, Download } from 'lucide-react';
+import { ArrowLeft, Maximize2, Minimize2, Save, Download, Calendar } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 export default function RosterGridPage() {
-    const [currentDate, setCurrentDate] = useState(new Date());
+    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+    // Memoize currentDate so it doesn't cause infinite re-renders in useEffect
+    const currentDate = React.useMemo(() => new Date(selectedYear, selectedMonth, 1), [selectedMonth, selectedYear]);
+
     const [doctors, setDoctors] = useState<Doctor[]>([]);
     const [rosters, setRosters] = useState<RosterRecord[]>([]);
     const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isFullScreen, setIsFullScreen] = useState(true);
+
+    const months = [
+        'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+        'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+    ];
 
     useEffect(() => {
         const loadData = async () => {
@@ -71,14 +81,39 @@ export default function RosterGridPage() {
             isFullScreen ? "fixed inset-0 z-[200] flex flex-col w-screen h-screen" : "space-y-4"
         )}>
             {!isFullScreen && (
-                <div className="flex items-center justify-between mb-2">
-                    <Link
-                        href="/dashboard/admin/roster"
-                        className="flex items-center gap-2 text-slate-500 hover:text-primary transition-all font-bold text-sm bg-white px-4 py-2 rounded-xl border border-slate-100 shadow-sm"
-                    >
-                        <ArrowLeft className="w-4 h-4" />
-                        العودة للتقويم
-                    </Link>
+                <div className="flex items-center justify-between mb-4 mt-2">
+                    <div className="flex items-center gap-4">
+                        <Link
+                            href="/dashboard/admin/roster"
+                            className="flex items-center gap-2 text-slate-500 hover:text-primary transition-all font-bold text-sm bg-white px-4 py-2 rounded-xl border border-slate-100 shadow-sm"
+                        >
+                            <ArrowLeft className="w-4 h-4" />
+                            العودة للتقويم
+                        </Link>
+
+                        {/* Month Selector */}
+                        <div className="flex items-center bg-white rounded-xl px-4 py-2 border border-slate-100 shadow-sm">
+                            <Calendar className="w-4 h-4 text-primary ml-2" />
+                            <select
+                                value={selectedMonth}
+                                onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                                className="bg-transparent font-black text-slate-800 outline-none cursor-pointer text-sm"
+                            >
+                                {months.map((m, i) => (
+                                    <option key={m} value={i}>{m}</option>
+                                ))}
+                            </select>
+                            <span className="mx-2 text-slate-300">|</span>
+                            <select
+                                value={selectedYear}
+                                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                                className="bg-transparent font-black text-slate-800 outline-none cursor-pointer text-sm"
+                            >
+                                <option value={2026}>2026</option>
+                                <option value={2025}>2025</option>
+                            </select>
+                        </div>
+                    </div>
 
                     <button
                         onClick={() => setIsFullScreen(true)}
@@ -97,9 +132,30 @@ export default function RosterGridPage() {
                 {isFullScreen && (
                     <div className="flex items-center justify-between p-4 bg-slate-900 text-white shrink-0">
                         <div className="flex items-center gap-4">
-                            <h2 className="text-lg font-black">
+                            <h2 className="text-lg font-black w-48 shrink-0">
                                 إدارة الجدول - {format(currentDate, 'MMMM yyyy', { locale: ar })}
                             </h2>
+                            <div className="flex items-center bg-slate-800 rounded-xl px-4 py-1.5 border border-slate-700 ml-4 hidden sm:flex">
+                                <Calendar className="w-4 h-4 text-emerald-400 ml-2" />
+                                <select
+                                    value={selectedMonth}
+                                    onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                                    className="bg-transparent font-bold text-white outline-none cursor-pointer text-sm"
+                                >
+                                    {months.map((m, i) => (
+                                        <option key={m} value={i} className="text-black">{m}</option>
+                                    ))}
+                                </select>
+                                <span className="mx-2 text-slate-600">|</span>
+                                <select
+                                    value={selectedYear}
+                                    onChange={(e) => setSelectedYear(Number(e.target.value))}
+                                    className="bg-transparent font-bold text-white outline-none cursor-pointer text-sm"
+                                >
+                                    <option value={2026} className="text-black">2026</option>
+                                    <option value={2025} className="text-black">2025</option>
+                                </select>
+                            </div>
                         </div>
                         <button
                             onClick={() => setIsFullScreen(false)}
