@@ -109,6 +109,8 @@ function DoctorsContent() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentDoctor, setCurrentDoctor] = useState<Partial<Doctor> | null>(null);
     const [isEditMode, setIsEditMode] = useState(false);
+    const [isCustomSpecialty, setIsCustomSpecialty] = useState(false);
+    const [isCustomDepartment, setIsCustomDepartment] = useState(false);
 
     // Sorting state
     type SortColumn = 'fingerprintCode' | 'fullNameArabic' | 'classification' | 'specialty' | 'department';
@@ -248,6 +250,15 @@ function DoctorsContent() {
             department: '',
             isActive: true,
         });
+
+        if (doctor) {
+            setIsCustomSpecialty(!!doctor.specialty && !MEDICAL_SPECIALTIES.includes(doctor.specialty));
+            setIsCustomDepartment(!!doctor.department && !DEPARTMENTS_MAPPING.some(d => d.canonicalName === doctor.department));
+        } else {
+            setIsCustomSpecialty(false);
+            setIsCustomDepartment(false);
+        }
+        
         setIsModalOpen(true);
     };
 
@@ -972,38 +983,98 @@ function DoctorsContent() {
                                         <StethoscopeIcon className="w-3 h-3 text-primary" />
                                         التخصص
                                     </label>
-                                    <input
-                                        required
-                                        className="w-full px-4 py-3 rounded-xl border border-border focus:ring-4 focus:ring-primary/10 transition-all font-bold placeholder:font-normal bg-slate-50/50"
-                                        placeholder="الجراحة، الأطفال..."
-                                        list="specialties-list"
-                                        value={currentDoctor?.specialty || ''}
-                                        onChange={e => setCurrentDoctor({ ...currentDoctor, specialty: e.target.value })}
-                                    />
-                                    <datalist id="specialties-list">
-                                        {MEDICAL_SPECIALTIES.map(spec => (
-                                            <option key={spec} value={spec} />
-                                        ))}
-                                    </datalist>
+                                    {!isCustomSpecialty ? (
+                                        <select
+                                            required
+                                            className="w-full px-4 py-3 rounded-xl border border-border focus:ring-4 focus:ring-primary/10 transition-all font-bold bg-slate-50/50"
+                                            value={currentDoctor?.specialty || ''}
+                                            onChange={e => {
+                                                if (e.target.value === 'أخرى...') {
+                                                    setIsCustomSpecialty(true);
+                                                    setCurrentDoctor({ ...currentDoctor, specialty: '' });
+                                                } else {
+                                                    setCurrentDoctor({ ...currentDoctor, specialty: e.target.value });
+                                                }
+                                            }}
+                                        >
+                                            <option value="" disabled>اختر التخصص...</option>
+                                            {MEDICAL_SPECIALTIES.map(spec => (
+                                                <option key={spec} value={spec}>{spec}</option>
+                                            ))}
+                                            <option value="أخرى..." className="font-black text-primary">أخرى... (إضافة جديد)</option>
+                                        </select>
+                                    ) : (
+                                        <div className="flex gap-2">
+                                            <input
+                                                required
+                                                className="w-full px-4 py-3 rounded-xl border border-border focus:ring-4 focus:ring-primary/10 transition-all font-bold placeholder:font-normal bg-white"
+                                                placeholder="أدخل التخصص الجديد..."
+                                                value={currentDoctor?.specialty || ''}
+                                                onChange={e => setCurrentDoctor({ ...currentDoctor, specialty: e.target.value })}
+                                                autoFocus
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setIsCustomSpecialty(false);
+                                                    setCurrentDoctor({ ...currentDoctor, specialty: '' });
+                                                }}
+                                                className="p-3 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                                                title="إلغاء وإضافة من القائمة"
+                                            >
+                                                <X className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-xs font-black text-slate-700 mr-1 flex items-center gap-1">
                                         <Hash className="w-3 h-3 text-primary" />
                                         القسم
                                     </label>
-                                    <input
-                                        required
-                                        className="w-full px-4 py-3 rounded-xl border border-border focus:ring-4 focus:ring-primary/10 transition-all font-bold placeholder:font-normal bg-slate-50/50"
-                                        placeholder="الرعاية المركزة، الطوارئ..."
-                                        list="departments-list"
-                                        value={currentDoctor?.department || ''}
-                                        onChange={e => setCurrentDoctor({ ...currentDoctor, department: e.target.value })}
-                                    />
-                                    <datalist id="departments-list">
-                                        {DEPARTMENTS_MAPPING.map(dept => (
-                                            <option key={dept.canonicalName} value={dept.canonicalName} />
-                                        ))}
-                                    </datalist>
+                                    {!isCustomDepartment ? (
+                                        <select
+                                            required
+                                            className="w-full px-4 py-3 rounded-xl border border-border focus:ring-4 focus:ring-primary/10 transition-all font-bold bg-slate-50/50"
+                                            value={currentDoctor?.department || ''}
+                                            onChange={e => {
+                                                if (e.target.value === 'أخرى...') {
+                                                    setIsCustomDepartment(true);
+                                                    setCurrentDoctor({ ...currentDoctor, department: '' });
+                                                } else {
+                                                    setCurrentDoctor({ ...currentDoctor, department: e.target.value });
+                                                }
+                                            }}
+                                        >
+                                            <option value="" disabled>اختر القسم...</option>
+                                            {DEPARTMENTS_MAPPING.map(dept => (
+                                                <option key={dept.canonicalName} value={dept.canonicalName}>{dept.canonicalName}</option>
+                                            ))}
+                                            <option value="أخرى..." className="font-black text-primary">أخرى... (إضافة جديد)</option>
+                                        </select>
+                                    ) : (
+                                        <div className="flex gap-2">
+                                            <input
+                                                required
+                                                className="w-full px-4 py-3 rounded-xl border border-border focus:ring-4 focus:ring-primary/10 transition-all font-bold placeholder:font-normal bg-white"
+                                                placeholder="أدخل القسم الجديد..."
+                                                value={currentDoctor?.department || ''}
+                                                onChange={e => setCurrentDoctor({ ...currentDoctor, department: e.target.value })}
+                                                autoFocus
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setIsCustomDepartment(false);
+                                                    setCurrentDoctor({ ...currentDoctor, department: '' });
+                                                }}
+                                                className="p-3 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                                                title="إلغاء وإضافة من القائمة"
+                                            >
+                                                <X className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
